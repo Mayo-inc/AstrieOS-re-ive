@@ -112,7 +112,7 @@
                         <input id="hintergrund-blur-silder-id" class="hintergrund-blur-silder" type="range" value="0" min="0" max="100">
                     </div>
                 </div>
-                <p>osu! misc</p>
+                <p>osu! misc [experiment]</p>
                 <div class="Einstellungen-links">
                     <button class="Placeholder-btn" type="button" data-osu-setting="enabled" aria-pressed="false"><p>osu! Funktion: <span id="osu-options-user">Aus</span></p></button>
                 </div>
@@ -122,9 +122,26 @@
                 <div class="Einstellungen-links">
                     <button class="Placeholder-btn" type="button" data-osu-setting="video" aria-pressed="false"><p>Beatmap-Video: <span id="osu-beatmap-video">Aus</span></p></button>
                     <button class="Placeholder-btn" type="button" data-osu-setting="storyboard" aria-pressed="false"><p>Beatmap-Storyboard: <span id="osu-beatmap-storyboard">Aus</span></p></button>
+                    <button class="Placeholder-btn" type="button" data-osu-setting="gameplay_standard" aria-pressed="false"><p>Standard-Hit-Circles anzeigen: <span id="osu-beatmap-gameplay">Aus</span></p></button>
                 </div>
                 <div class="Einstellungen-links">
                     <button class="Placeholder-btn" type="button" data-osu-setting="starFountains" aria-pressed="false"><p>Sternfontänen: <span id="osu-beatmap-kiaitime">Aus</span></p></button>
+                </div>
+                <div class="Einstellungen-links">
+                    <button class="Placeholder-btn" type="button" data-osu-setting="gameplay_autoplay_standard" aria-pressed="false"><p>Standard-Autoplay: <span id="osu-beatmap-gameplay-autobot">Aus</span></p></button>
+                    <button class="Placeholder-btn" type="button" data-osu-setting="wallpaper-override" aria-pressed="false"><p>Beatmap-Hintergrund als Desktop-Hintergrund: <span id="osu-beatmap-desktopoverride">Aus</span></p></button>
+                </div>
+                <div class="osu-skin-overview">
+                    <div class="osu-skin-header"><p>osu!-Skin</p></div>
+                    <div class="osu-skin-overview-preview">
+                        <p class="osu-skin-overview-preview-leer" data-osu-skin-empty>Kein Skin ausgewählt.</p>
+                        <img class="osu-skin-preview-image" data-osu-skin-preview alt="Vorschau des ausgewählten osu!-Skins" hidden>
+                        <p data-osu-skin-name>Standard-Skin</p>
+                    </div>
+                    <button class="Placeholder-btn osu-skin-upload" data-osu-skin-upload-button type="button">osu!-Skin (.osk) hochladen</button>
+                    <input data-osu-skin-upload type="file" accept=".osk,.zip,application/zip" hidden>
+                    <button class="Placeholder-btn osu-skin-default" data-osu-skin-default type="button" aria-pressed="true">Standard-Skin verwenden</button>
+                    <div class="osu-skin-overview-scroll" data-osu-skin-list aria-live="polite"></div>
                 </div>
                 <div class="Einstellungen-linie"></div>
                 <div id="Settings_audio" class="Einstellungen-header"><img class="Einstellungen-icon-header" src="/Res/Bild/Icon/EInstellungen/volume_up_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><h2>Audio</h2></div>

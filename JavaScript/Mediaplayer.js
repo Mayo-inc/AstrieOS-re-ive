@@ -1,6 +1,8 @@
 const Mediaplayer = {
     DB_NAME: 'astrieos_mediaplayer',
     DB_STORE: 'tracks',
+    DB_SKIN_STORE: 'osu-skins',
+    DB_VERSION: 2,
     dbPromise: null,
     tracks: [],
     currentIndex: -1,
@@ -16,6 +18,21 @@ const Mediaplayer = {
     gainNode: null,
     visualizerFrame: 0,
     titleResizeObserver: null,
+    gameplayFrame: 0,
+    gameplayHandled: new Set(),
+    gameplayElements: new Map(),
+    gameplaySliderPaths: new Map(),
+    activeGameplaySliders: new Set(),
+    gameplayCursor: null,
+    gameplaySliderBalls: new Map(),
+    gameplayWindowIndex: 0,
+    wallpaperRestoreState: null,
+    wallpaperSyncId: 0,
+    skins: [],
+    skinsLoaded: false,
+    skinLoadPromise: null,
+    activeSkin: null,
+    skinObjectUrls: new Map(),
 
     init() {
         const attach = () => {
@@ -40,8 +57,16 @@ const Mediaplayer = {
     openDB() {
         if (this.dbPromise) return this.dbPromise;
         this.dbPromise = new Promise((resolve, reject) => {
-            const request = indexedDB.open(this.DB_NAME, 1);
-            request.onupgradeneeded = () => request.result.createObjectStore(this.DB_STORE, { keyPath: 'id' });
+            const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+            request.onupgradeneeded = () => {
+                const database = request.result;
+                if (!database.objectStoreNames.contains(this.DB_STORE)) {
+                    database.createObjectStore(this.DB_STORE, { keyPath: 'id' });
+                }
+                if (!database.objectStoreNames.contains(this.DB_SKIN_STORE)) {
+                    database.createObjectStore(this.DB_SKIN_STORE, { keyPath: 'id' });
+                }
+            };
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });
@@ -52,6 +77,33 @@ const Mediaplayer = {
         const db = await this.openDB();
         await new Promise((resolve, reject) => {
             const request = db.transaction(this.DB_STORE, 'readwrite').objectStore(this.DB_STORE).put(track);
+            request.onsuccess = resolve;
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    async storeOsuSkin(skin) {
+        const db = await this.openDB();
+        await new Promise((resolve, reject) => {
+            const request = db.transaction(this.DB_SKIN_STORE, 'readwrite').objectStore(this.DB_SKIN_STORE).put(skin);
+            request.onsuccess = resolve;
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    async readOsuSkins() {
+        const db = await this.openDB();
+        return new Promise((resolve, reject) => {
+            const request = db.transaction(this.DB_SKIN_STORE).objectStore(this.DB_SKIN_STORE).getAll();
+            request.onsuccess = () => resolve(request.result || []);
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    async deleteOsuSkin(id) {
+        const db = await this.openDB();
+        await new Promise((resolve, reject) => {
+            const request = db.transaction(this.DB_SKIN_STORE, 'readwrite').objectStore(this.DB_SKIN_STORE).delete(id);
             request.onsuccess = resolve;
             request.onerror = () => reject(request.error);
         });
@@ -100,14 +152,36 @@ const Mediaplayer = {
                 seek.value = String(Math.round(this.audio.currentTime / this.audio.duration * 1000));
             }
             this.renderTime();
-            this.playBeatmapHits();
             this.syncCoverPlayback(!this.audio.paused);
             this.drawVisualizer();
         });
-        this.audio.addEventListener('ended', () => this.step(1));
+        this.audio.addEventListener('ended', () => {
+            this.gameplayHandled.clear();
+            this.gameplayElements.clear();
+            this.gameplaySliderPaths.clear();
+            this.gameplaySliderBalls.clear();
+            this.gameplayWindowIndex = 0;
+            this.activeGameplaySliders.clear();
+            document.querySelector('.Mediaplayer-gameplay')?.replaceChildren();
+            this.step(1);
+        });
+        this.audio.addEventListener('seeking', () => {
+            this.gameplayHandled.clear();
+            this.gameplayElements.clear();
+            this.gameplaySliderPaths.clear();
+            this.gameplaySliderBalls.clear();
+            this.gameplayWindowIndex = 0;
+            this.activeGameplaySliders.clear();
+            document.querySelector('.Mediaplayer-gameplay')?.replaceChildren();
+            const beatmap = this.tracks[this.currentIndex]?.beatmap;
+            const now = this.audio.currentTime * 1000;
+            this.nextHitIndex = beatmap?.hitTimes?.findIndex(time => time >= now) ?? 0;
+            if (this.nextHitIndex < 0) this.nextHitIndex = beatmap?.hitTimes?.length || 0;
+        });
         this.audio.addEventListener('play', () => {
             this.renderPlayButton(true);
             this.syncCoverPlayback(true);
+            this.startGameplayLoop();
             if (Nutzerspeicher.getSetting('visualizerEnabled', false)) {
                 this.ensureAudioGraph().then(() => this.drawVisualizer()).catch(error => console.warn('[Mediaplayer] Visualizer nicht verfügbar:', error));
             }
@@ -115,6 +189,7 @@ const Mediaplayer = {
         this.audio.addEventListener('pause', () => {
             this.renderPlayButton(false);
             this.syncCoverPlayback(false);
+            this.stopGameplayLoop();
         });
         this.audio.addEventListener('error', () => this.setStatus('Diese Audiodatei kann der Browser nicht abspielen.'));
     },
@@ -232,18 +307,206 @@ const Mediaplayer = {
         const metadata = text.match(/\[Metadata\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
         const events = text.match(/\[Events\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
         const hitObjects = text.match(/\[HitObjects\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
+        const difficulty = text.match(/\[Difficulty\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
+        const timing = text.match(/\[TimingPoints\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
         const value = (source, key) => source.match(new RegExp(`^${key}:(.*)$`, 'mi'))?.[1]?.trim() || '';
         const videoLine = events.match(/^Video,\s*([^,]+),\s*"([^"]+)"/mi);
         const backgroundLine = events.match(/^0,\s*0,\s*"([^"]+)"/mi);
+        const mode = Number(value(section, 'Mode')) || 0;
+        const approachRateValue = Number(value(difficulty, 'ApproachRate'));
+        const sliderMultiplier = Number(value(difficulty, 'SliderMultiplier')) || 1.4;
+        const sliderTickRate = Number(value(difficulty, 'SliderTickRate')) || 1;
+        const timingPoints = timing.split(/\r?\n/).map(line => {
+            const fields = line.split(',');
+            const time = Number(fields[0]);
+            const beatLength = Number(fields[1]);
+            if (!Number.isFinite(time) || !Number.isFinite(beatLength)) return null;
+            return { time, beatLength, uninherited: fields[6] === '1' };
+        }).filter(Boolean).sort((a, b) => a.time - b.time);
+
+        const hitObjectData = [];
+        const hitEvents = [];
+        hitObjects.split(/\r?\n/).forEach(line => {
+            const fields = line.split(',');
+            const x = Number(fields[0]);
+            const y = Number(fields[1]);
+            const time = Number(fields[2]);
+            const type = Number(fields[3]);
+            if (![x, y, time, type].every(Number.isFinite)) return;
+
+            const kind = type & 8 ? 'spinner' : type & 2 ? 'slider' : type & 1 ? 'circle' : null;
+            if (!kind) return;
+
+            const sampleField = fields[kind === 'slider' ? 10 : kind === 'spinner' ? 6 : 5] || '';
+            const sampleParts = sampleField.split(':');
+            const object = {
+                x: kind === 'spinner' ? 256 : x,
+                y: kind === 'spinner' ? 192 : y,
+                time,
+                endTime: kind === 'spinner' ? Number(fields[5]) || time : time,
+                kind,
+                hitSound: Number(fields[4]) || 0,
+                sampleSet: Number(sampleParts[0]) || 0,
+                additionSet: Number(sampleParts[1]) || 0,
+                sampleIndex: Number(sampleParts[2]) || 0,
+                sampleVolume: Number(sampleParts[3]) || 0,
+                customSample: sampleParts.slice(4).join(':') || ''
+            };
+
+            if (kind === 'slider') {
+                const curve = fields[5] || '';
+                const [curveType = 'B', ...rawPoints] = curve.split('|');
+                const controlPoints = [{ x, y }, ...rawPoints.map(point => {
+                    const [pointX, pointY] = point.split(':').map(Number);
+                    return Number.isFinite(pointX) && Number.isFinite(pointY) ? { x: pointX, y: pointY } : null;
+                }).filter(Boolean)];
+                const timingAt = timingPoints.filter(point => point.time <= time);
+                const baseTiming = [...timingAt].reverse().find(point => point.uninherited && point.beatLength > 0);
+                const inheritedTiming = [...timingAt].reverse().find(point => !point.uninherited && point.beatLength < 0);
+                const beatLength = baseTiming?.beatLength || 500;
+                const velocity = inheritedTiming ? Math.min(10, 100 / -inheritedTiming.beatLength) : 1;
+                const spanCount = Math.max(1, Number(fields[6]) || 1);
+                const pixelLength = Math.max(0, Number(fields[7]) || 0);
+                const spanDuration = pixelLength / (100 * sliderMultiplier * velocity) * beatLength;
+
+                object.curveType = curveType;
+                object.pathPoints = this._fitBeatmapPath(
+                    this._sampleBeatmapPath(curveType, controlPoints),
+                    pixelLength
+                );
+                object.pathLength = this._measureBeatmapPath(object.pathPoints);
+                object.spanCount = spanCount;
+                object.spanDuration = spanDuration;
+                object.duration = spanDuration * spanCount;
+                object.endTime = time + object.duration;
+                object.hitSample = sampleField;
+
+                const tickInterval = beatLength / sliderTickRate / velocity;
+                if (tickInterval > 0 && spanDuration > 0) {
+                    for (let span = 0; span < spanCount; span += 1) {
+                        for (let tick = tickInterval; tick < spanDuration - 10; tick += tickInterval) {
+                            hitEvents.push({ time: time + span * spanDuration + tick, object, kind: 'tick' });
+                        }
+                        if (span < spanCount - 1) {
+                            hitEvents.push({ time: time + (span + 1) * spanDuration, object, kind: 'repeat' });
+                        }
+                    }
+                }
+            } else if (kind === 'spinner') {
+                object.hitSample = sampleField;
+            } else {
+                object.hitSample = sampleField;
+            }
+
+            hitObjectData.push(object);
+            hitEvents.push({ time, object, kind: 'head' });
+        });
+
+        hitEvents.sort((a, b) => a.time - b.time);
         return {
+            mode,
+            sampleSet: value(section, 'SampleSet').toLowerCase() || 'normal',
             audioFilename: value(section, 'AudioFilename'),
             title: value(metadata, 'TitleUnicode') || value(metadata, 'Title'),
             artist: value(metadata, 'ArtistUnicode') || value(metadata, 'Artist'),
             videoFilename: videoLine?.[2] || '',
             videoOffset: Number(videoLine?.[1]) || 0,
             backgroundFilename: backgroundLine?.[1] || '',
-            hitTimes: hitObjects.split(/\r?\n/).map(line => Number(line.split(',')[2])).filter(Number.isFinite).sort((a, b) => a - b)
+            circleSize: Number(value(difficulty, 'CircleSize')) || 5,
+            approachRate: Number.isFinite(approachRateValue) ? approachRateValue : 5,
+            hitObjects: hitObjectData,
+            hitEvents,
+            hitTimes: hitEvents.map(event => event.time)
         };
+    },
+
+    _sampleBeatmapPath(curveType, points) {
+        if (points.length < 2 || curveType === 'L') return points;
+        const sampled = [];
+        const segments = curveType === 'C' ? points.length - 1 : 48;
+        for (let step = 0; step <= segments; step += 1) {
+            const t = step / segments;
+            if (curveType === 'C' && points.length > 2) {
+                const position = t * (points.length - 1);
+                const index = Math.min(points.length - 2, Math.floor(position));
+                const local = position - index;
+                const p0 = points[Math.max(0, index - 1)];
+                const p1 = points[index];
+                const p2 = points[index + 1];
+                const p3 = points[Math.min(points.length - 1, index + 2)];
+                const local2 = local * local;
+                const local3 = local2 * local;
+                sampled.push({
+                    x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * local + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * local2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * local3),
+                    y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * local + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * local2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * local3)
+                });
+                continue;
+            }
+
+            let current = points.map(point => ({ ...point }));
+            while (current.length > 1) {
+                current = current.slice(1).map((point, index) => ({
+                    x: current[index].x + (point.x - current[index].x) * t,
+                    y: current[index].y + (point.y - current[index].y) * t
+                }));
+            }
+            sampled.push(current[0]);
+        }
+        return sampled;
+    },
+
+    _measureBeatmapPath(points) {
+        return points.slice(1).reduce((length, point, index) => {
+            const previous = points[index];
+            return length + Math.hypot(point.x - previous.x, point.y - previous.y);
+        }, 0);
+    },
+
+    _fitBeatmapPath(points, targetLength) {
+        if (points.length < 2 || targetLength <= 0) return points;
+        const fitted = [points[0]];
+        let length = 0;
+        for (let index = 1; index < points.length; index += 1) {
+            const start = points[index - 1];
+            const end = points[index];
+            const segmentLength = Math.hypot(end.x - start.x, end.y - start.y);
+            if (length + segmentLength >= targetLength) {
+                const fraction = segmentLength ? (targetLength - length) / segmentLength : 0;
+                fitted.push({
+                    x: start.x + (end.x - start.x) * fraction,
+                    y: start.y + (end.y - start.y) * fraction
+                });
+                return fitted;
+            }
+            fitted.push(end);
+            length += segmentLength;
+        }
+        if (length < targetLength) {
+            const last = fitted[fitted.length - 1];
+            const previous = fitted[fitted.length - 2] || last;
+            const angle = Math.atan2(last.y - previous.y, last.x - previous.x);
+            fitted.push({
+                x: last.x + Math.cos(angle) * (targetLength - length),
+                y: last.y + Math.sin(angle) * (targetLength - length)
+            });
+        }
+        return fitted;
+    },
+
+    _pointOnBeatmapPath(points, distance, totalLength) {
+        if (points.length < 2 || !totalLength) return points[0] || { x: 256, y: 192 };
+        let remaining = Math.max(0, Math.min(totalLength, distance));
+        for (let index = 1; index < points.length; index += 1) {
+            const start = points[index - 1];
+            const end = points[index];
+            const segmentLength = Math.hypot(end.x - start.x, end.y - start.y);
+            if (remaining <= segmentLength) {
+                const amount = segmentLength ? remaining / segmentLength : 0;
+                return { x: start.x + (end.x - start.x) * amount, y: start.y + (end.y - start.y) * amount };
+            }
+            remaining -= segmentLength;
+        }
+        return points[points.length - 1];
     },
 
     async extractZip(file) {
@@ -398,6 +661,16 @@ const Mediaplayer = {
         Nutzerspeicher.setSetting('mediaplayerCurrentTrack', track.id);
         this.renderPlaylist();
         this.renderCover(track);
+        this.gameplayHandled.clear();
+        this.gameplayElements.clear();
+        this.gameplaySliderPaths.clear();
+        this.gameplaySliderBalls.clear();
+        this.gameplayWindowIndex = 0;
+        this.activeGameplaySliders.clear();
+        document.querySelector('.Mediaplayer-gameplay')?.replaceChildren();
+        this.renderBeatmapGameplay();
+        this.syncBeatmapWallpaper();
+        if (!this.audio.paused) this.startGameplayLoop();
         if (track.type === 'osu' && Nutzerspeicher.getSetting('osuOptions', {}).enabled) {
             this.beatmapHitTimes = track.beatmap?.hitTimes || [];
             this.nextHitIndex = this.beatmapHitTimes.findIndex(time => time >= this.audio.currentTime * 1000);
@@ -500,12 +773,403 @@ const Mediaplayer = {
         if (image) image.src = '/Res/Bild/Hintergrund/Default-Banner.png';
     },
 
+    renderBeatmapGameplay() {
+        const track = this.tracks[this.currentIndex];
+        const options = Nutzerspeicher.getSetting('osuOptions', {});
+        const container = document.querySelector('.Mediaplayer-cover');
+        const enabled = Boolean(
+            track?.type === 'osu'
+            && track.beatmap?.mode === 0
+            && options.enabled
+            && options.gameplay_standard
+            && container
+        );
+
+        if (!enabled) {
+            this.stopGameplayLoop();
+            document.querySelector('.Mediaplayer-gameplay')?.remove();
+            this.gameplayElements.clear();
+            this.gameplaySliderPaths.clear();
+            this.gameplaySliderBalls.clear();
+            this.gameplayWindowIndex = 0;
+            this.activeGameplaySliders.clear();
+            return;
+        }
+
+        let overlay = container.querySelector('.Mediaplayer-gameplay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'Mediaplayer-gameplay';
+            overlay.setAttribute('aria-label', 'osu! Standard-Beatmap');
+            container.append(overlay);
+        }
+
+        let sliderLayer = overlay.querySelector('.Mediaplayer-slider-layer');
+        if (!sliderLayer) {
+            sliderLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            sliderLayer.classList.add('Mediaplayer-slider-layer');
+            sliderLayer.setAttribute('viewBox', '0 0 512 384');
+            sliderLayer.setAttribute('preserveAspectRatio', 'none');
+            sliderLayer.setAttribute('aria-hidden', 'true');
+            overlay.prepend(sliderLayer);
+        }
+        this._ensureGameplayCursor(overlay);
+
+        const objects = track.beatmap.hitObjects || [];
+        const now = this.audio.currentTime * 1000;
+        const approachTime = this._beatmapApproachTime(track.beatmap);
+        const autoplay = Boolean(options.gameplay_autoplay_standard);
+        const circleDiameter = Math.max(40, 108.8 - 8.96 * (track.beatmap.circleSize || 5));
+        const visibleIndices = new Set();
+
+        // Fenster ueber die zeitsortierten Objekte statt forEach ueber alle.
+        let start = Math.min(this.gameplayWindowIndex || 0, objects.length);
+        while (start < objects.length && objects[start].endTime + 600 < now) start += 1;
+        this.gameplayWindowIndex = start;
+
+        for (let index = start; index < objects.length; index += 1) {
+            const object = objects[index];
+            const untilHit = object.time - now;
+            if (untilHit > approachTime) break;
+            if (this.gameplayHandled.has(index)) continue;
+            const isSlider = object.kind === 'slider';
+            const expiresAt = isSlider ? object.endTime + 180 : object.time + 220;
+            if (now > expiresAt) {
+                this.gameplayHandled.add(index);
+                this.activeGameplaySliders.delete(index);
+                this.gameplayElements.get(index)?.remove();
+                this.gameplayElements.delete(index);
+                this.gameplaySliderPaths.get(index)?.remove();
+                this.gameplaySliderPaths.delete(index);
+                this._removeSliderBall(overlay, index);
+                continue;
+            }
+
+            visibleIndices.add(index);
+            if (isSlider) this._renderSliderPath(sliderLayer, object, index, circleDiameter);
+            let circle = this.gameplayElements.get(index);
+            if (!circle) {
+                circle = this._createBeatmapCircle(object, index, circleDiameter, autoplay);
+                this.gameplayElements.set(index, circle);
+                overlay.append(circle);
+            }
+
+            const approach = circle.querySelector('.Mediaplayer-approach-circle');
+            const sliderActive = isSlider && (this.activeGameplaySliders.has(index) || autoplay && untilHit <= 12);
+            if (sliderActive && !this.activeGameplaySliders.has(index)) {
+                this.activeGameplaySliders.add(index);
+                circle.classList.add('is-following');
+            }
+
+            if (isSlider && sliderActive) {
+                this._updateSliderBall(overlay, object, index, now, circleDiameter);
+                if (now > object.endTime + 40) {
+                    this.gameplayHandled.add(index);
+                    this.activeGameplaySliders.delete(index);
+                    circle.classList.add('is-hit');
+                    window.setTimeout(() => circle.remove(), 110);
+                    this.gameplayElements.delete(index);
+                    this.gameplaySliderPaths.get(index)?.remove();
+                    this.gameplaySliderPaths.delete(index);
+                    this._removeSliderBall(overlay, index);
+                }
+            } else if (approach) {
+                const scale = 1 + Math.max(0, untilHit) / approachTime * 2.4;
+                approach.style.transform = `scale(${scale})`;
+            }
+
+            if (!isSlider && autoplay && untilHit <= 12) {
+                this.gameplayHandled.add(index);
+                this._moveGameplayCursor(object.x, object.y);
+                circle.classList.add('is-hit');
+                window.setTimeout(() => circle.remove(), 110);
+                this.gameplayElements.delete(index);
+            }
+        }
+
+        this.gameplayElements.forEach((circle, index) => {
+            if (!visibleIndices.has(index) && !this.gameplayHandled.has(index)) {
+                circle.remove();
+                this.gameplayElements.delete(index);
+            }
+        });
+    },
+
+    _ensureGameplayCursor(overlay) {
+        let cursor = overlay.querySelector('.Mediaplayer-osu-cursor');
+        if (!cursor) {
+            cursor = document.createElement('span');
+            cursor.className = 'Mediaplayer-osu-cursor';
+            cursor.setAttribute('aria-hidden', 'true');
+            const image = document.createElement('img');
+            image.alt = '';
+            cursor.append(image);
+            overlay.append(cursor);
+        }
+        const image = cursor.querySelector('img');
+        const skinCursor = this._skinAssetUrl('cursor');
+        cursor.classList.toggle('is-skinned', Boolean(skinCursor));
+        if (image) {
+            image.hidden = !skinCursor;
+            if (skinCursor) image.src = skinCursor;
+        }
+
+        // Listener immer am Cover hosten: Das Gameplay-Overlay selbst hat
+        // pointer-events:none, der alte Code hingegen hoerte nur auf den Kreisen.
+        // Der aktuelle Cursor wird pro Event frisch gesucht, damit das Binding
+        // auch nach overlay.replaceChildren() weiter funktioniert.
+        if (!overlay.dataset.cursorBound) {
+            overlay.dataset.cursorBound = 'true';
+            const host = overlay.closest('.Mediaplayer-cover') || overlay;
+            host.addEventListener('pointermove', event => {
+                const current = overlay.querySelector('.Mediaplayer-osu-cursor');
+                if (!current) return;
+                const bounds = overlay.getBoundingClientRect();
+                if (!bounds.width || !bounds.height) return;
+                const x = Math.max(0, Math.min(100, (event.clientX - bounds.left) / bounds.width * 100));
+                const y = Math.max(0, Math.min(100, (event.clientY - bounds.top) / bounds.height * 100));
+                current.style.left = `${x}%`;
+                current.style.top = `${y}%`;
+                current.classList.add('is-visible');
+            });
+            host.addEventListener('pointerleave', () => {
+                overlay.querySelector('.Mediaplayer-osu-cursor')?.classList.remove('is-visible');
+            });
+        }
+        this.gameplayCursor = cursor;
+    },
+
+    _moveGameplayCursor(x, y) {
+        if (!this.gameplayCursor) return;
+        this.gameplayCursor.style.left = `${x / 512 * 100}%`;
+        this.gameplayCursor.style.top = `${y / 384 * 100}%`;
+        this.gameplayCursor.classList.add('is-visible');
+    },
+
+    _renderSliderPath(layer, object, index, diameter) {
+        if (this.gameplaySliderPaths.has(index)) return;
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.classList.add('Mediaplayer-slider-path');
+        const pathData = object.pathPoints.map((point, pointIndex) => `${pointIndex ? 'L' : 'M'}${point.x} ${point.y}`).join(' ');
+        const outline = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        outline.setAttribute('d', pathData);
+        outline.setAttribute('stroke-width', String(diameter * 1.16));
+        outline.classList.add('Mediaplayer-slider-outline');
+        const body = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        body.setAttribute('d', pathData);
+        body.setAttribute('stroke-width', String(diameter * 0.88));
+        body.classList.add('Mediaplayer-slider-body');
+        group.append(outline, body);
+        layer.append(group);
+        this.gameplaySliderPaths.set(index, group);
+    },
+
+    _updateSliderBall(overlay, object, index, now, diameter) {
+        let ball = this.gameplaySliderBalls.get(index);
+        if (!ball || !ball.isConnected) {
+            if (ball) this.gameplaySliderBalls.delete(index);
+            ball = document.createElement('span');
+            ball.className = 'Mediaplayer-slider-ball';
+            ball.dataset.sliderBall = String(index);
+            const skin = this._skinAssetUrl('sliderfollowcircle');
+            if (skin) ball.style.backgroundImage = `url("${skin}")`;
+            overlay.append(ball);
+            this.gameplaySliderBalls.set(index, ball);
+        }
+
+        const elapsed = Math.max(0, now - object.time);
+        const spanDuration = Math.max(1, object.spanDuration);
+        const span = Math.min(object.spanCount - 1, Math.floor(elapsed / spanDuration));
+        let progress = Math.min(1, (elapsed - span * spanDuration) / spanDuration);
+        if (span % 2) progress = 1 - progress;
+        const point = this._pointOnBeatmapPath(object.pathPoints, object.pathLength * progress, object.pathLength);
+        ball.style.left = `${point.x / 512 * 100}%`;
+        ball.style.top = `${point.y / 384 * 100}%`;
+        ball.style.width = `${diameter / 512 * 100}%`;
+        if (Nutzerspeicher.getSetting('osuOptions', {}).gameplay_autoplay_standard) {
+            this._moveGameplayCursor(point.x, point.y);
+        }
+    },
+
+    _removeSliderBall(overlay, index) {
+        const ball = this.gameplaySliderBalls.get(index);
+        if (ball) {
+            ball.remove();
+            this.gameplaySliderBalls.delete(index);
+        } else {
+            overlay.querySelector(`[data-slider-ball="${index}"]`)?.remove();
+        }
+    },
+
+    _createBeatmapCircle(object, index, diameter, autoplay) {
+        const circle = document.createElement('button');
+        circle.type = 'button';
+        circle.className = `Mediaplayer-hit-circle is-${object.kind}`;
+        circle.dataset.hitObject = String(index);
+        circle.setAttribute('aria-label', `Beatmap-Kreis ${index + 1}`);
+        circle.style.left = `${object.x / 512 * 100}%`;
+        circle.style.top = `${object.y / 384 * 100}%`;
+        circle.style.width = `${diameter / 512 * 100}%`;
+        circle.disabled = autoplay;
+
+        const approach = document.createElement('span');
+        approach.className = 'Mediaplayer-approach-circle';
+        const skin = this._skinAssetUrl('approachcircle');
+        if (skin) approach.style.backgroundImage = `url("${skin}")`;
+
+        const hitCircle = document.createElement('span');
+        hitCircle.className = 'Mediaplayer-hit-circle-face';
+        const hitCircleSkin = this._skinAssetUrl('hitcircle');
+        if (hitCircleSkin) hitCircle.style.backgroundImage = `url("${hitCircleSkin}")`;
+
+        const overlaySkin = this._skinAssetUrl('hitcircleoverlay');
+        if (overlaySkin) {
+            const overlay = document.createElement('span');
+            overlay.className = 'Mediaplayer-hit-circle-overlay';
+            overlay.style.backgroundImage = `url("${overlaySkin}")`;
+            hitCircle.append(overlay);
+        }
+        const number = document.createElement('span');
+        number.className = 'Mediaplayer-hit-number';
+        number.textContent = String(index + 1);
+        hitCircle.append(number);
+        circle.append(approach, hitCircle);
+
+        circle.addEventListener('click', () => {
+            const track = this.tracks[this.currentIndex];
+            const currentObject = track?.beatmap?.hitObjects?.[index];
+            if (!currentObject || this.audio.paused) return;
+            const difference = Math.abs(this.audio.currentTime * 1000 - currentObject.time);
+            if (difference > 180) return;
+            if (currentObject.kind === 'slider') {
+                this.activeGameplaySliders.add(index);
+                circle.classList.add('is-following');
+                return;
+            }
+            this.gameplayHandled.add(index);
+            this.gameplayElements.delete(index);
+            circle.classList.add('is-hit');
+            window.setTimeout(() => circle.remove(), 100);
+        });
+        return circle;
+    },
+
+    _beatmapApproachTime(beatmap) {
+        const section = beatmap.approachRate ?? 5;
+        return Math.max(450, Math.min(1800, 1800 - 120 * section));
+    },
+
+    startGameplayLoop() {
+        const track = this.tracks[this.currentIndex];
+        const options = Nutzerspeicher.getSetting('osuOptions', {});
+        if (this.audio.paused || track?.type !== 'osu' || !options.enabled) return;
+        if (this.gameplayFrame) return;
+        const renderFrame = () => {
+            this.gameplayFrame = 0;
+            if (this.audio.paused) return;
+            const activeTrack = this.tracks[this.currentIndex];
+            const activeOptions = Nutzerspeicher.getSetting('osuOptions', {});
+            if (activeTrack?.type !== 'osu' || !activeOptions.enabled) return;
+            this.playBeatmapHits();
+            if (activeTrack.beatmap?.mode === 0 && activeOptions.gameplay_standard) this.renderBeatmapGameplay();
+            this.gameplayFrame = window.requestAnimationFrame(renderFrame);
+        };
+        this.gameplayFrame = window.requestAnimationFrame(renderFrame);
+    },
+
+    stopGameplayLoop() {
+        if (!this.gameplayFrame) return;
+        window.cancelAnimationFrame(this.gameplayFrame);
+        this.gameplayFrame = 0;
+    },
+
+    async syncBeatmapWallpaper() {
+        const requestId = ++this.wallpaperSyncId;
+        const track = this.tracks[this.currentIndex];
+        const options = Nutzerspeicher.getSetting('osuOptions', {});
+        const backgroundName = track?.type === 'osu' && track.beatmap?.backgroundFilename;
+        const asset = backgroundName && track.files?.find(file => file.name.toLowerCase().split('/').pop() === backgroundName.split('/').pop().toLowerCase());
+        const shouldOverride = Boolean(track?.type === 'osu' && options.enabled && options['wallpaper-override'] && asset);
+
+        if (shouldOverride) {
+            if (!this.wallpaperRestoreState) {
+                try {
+                    const state = await this._captureWallpaperState();
+                    if (requestId !== this.wallpaperSyncId) return;
+                    this.wallpaperRestoreState = state;
+                } catch (error) {
+                    console.warn('[Mediaplayer] Aktueller Hintergrund konnte nicht gesichert werden:', error);
+                    return;
+                }
+            }
+            if (requestId !== this.wallpaperSyncId) return;
+            Nutzerspeicher.ladeHintergrund(this.assetUrl(track, asset), 'static');
+            return;
+        }
+
+        if (this.wallpaperRestoreState) await this._restoreWallpaperState(requestId);
+    },
+
+    async _captureWallpaperState() {
+        const saved = Nutzerspeicher.hintergrundLaden();
+        const image = document.querySelector('.Desktop-wallpaper');
+        const video = document.querySelector('.Desktop-video-wallpaper');
+        const videoIsVisible = Boolean(video && video.style.display !== 'none');
+        let url = saved.url;
+        if (url?.startsWith('indexeddb:')) url = await Nutzerspeicher.resolveWallpaperUrl(url);
+        if (!url) url = videoIsVisible ? video.currentSrc || video.querySelector('source')?.src : image?.currentSrc || image?.src;
+
+        return {
+            url,
+            type: saved.url ? saved.type : videoIsVisible ? 'video' : 'static',
+            videoTime: video?.currentTime || 0,
+            videoWasPlaying: Boolean(video && !video.paused),
+            imageObjectFit: image?.style.objectFit || 'cover'
+        };
+    },
+
+    async _restoreWallpaperState(requestId) {
+        const state = this.wallpaperRestoreState;
+        if (!state || requestId !== this.wallpaperSyncId) return;
+        if (!state.url) {
+            this.wallpaperRestoreState = null;
+            return;
+        }
+
+        const saved = Nutzerspeicher.hintergrundLaden();
+        let url = saved.url || state.url;
+        if (url.startsWith('indexeddb:')) url = await Nutzerspeicher.resolveWallpaperUrl(url);
+        if (requestId !== this.wallpaperSyncId) return;
+        this.wallpaperRestoreState = null;
+
+        const type = saved.url ? saved.type : state.type;
+        Nutzerspeicher.ladeHintergrund(url, type);
+        const image = document.querySelector('.Desktop-wallpaper');
+        if (image) image.style.objectFit = state.imageObjectFit;
+
+        if (type === 'video') {
+            const video = document.querySelector('.Desktop-video-wallpaper');
+            if (video) {
+                const restoreTime = () => {
+                    try { video.currentTime = state.videoTime; } catch {}
+                    if (!state.videoWasPlaying) video.pause();
+                };
+                if (video.readyState >= 1) restoreTime();
+                else video.addEventListener('loadedmetadata', restoreTime, { once: true });
+            }
+        }
+    },
+
     async removeTrack(id) {
         const index = this.tracks.findIndex(track => track.id === id);
         if (index < 0) return;
         if (!window.confirm(`„${this.tracks[index].title}“ aus der Mediathek löschen?`)) return;
         const wasCurrent = index === this.currentIndex;
-        if (wasCurrent) this.audio.pause();
+        if (wasCurrent) {
+            this.audio.pause();
+            this.currentIndex = -1;
+            await this.syncBeatmapWallpaper();
+        }
         const db = await this.openDB();
         await new Promise((resolve, reject) => {
             const request = db.transaction(this.DB_STORE, 'readwrite').objectStore(this.DB_STORE).delete(id);
@@ -522,8 +1186,14 @@ const Mediaplayer = {
         if (wasCurrent) {
             this.audio.removeAttribute('src');
             this.audio.load();
-            this.currentIndex = -1;
             Nutzerspeicher.setSetting('mediaplayerCurrentTrack', null);
+            document.querySelector('.Mediaplayer-gameplay')?.remove();
+            this.gameplayElements.clear();
+            this.gameplaySliderPaths.clear();
+            this.gameplaySliderBalls.clear();
+            this.gameplayWindowIndex = 0;
+            this.activeGameplaySliders.clear();
+            this.gameplayHandled.clear();
             this.clearBeatmapVisuals();
             if (this.tracks.length) this.select(Math.min(index, this.tracks.length - 1), false);
             else {
@@ -587,15 +1257,83 @@ const Mediaplayer = {
     },
 
     playBeatmapHits() {
-        if (!this.beatmapHitTimes.length || !Nutzerspeicher.getSetting('osuOptions', {}).enabled) return;
+        const track = this.tracks[this.currentIndex];
+        const events = track?.beatmap?.hitEvents || [];
+        if (!events.length || !Nutzerspeicher.getSetting('osuOptions', {}).enabled) return;
         const now = this.audio.currentTime * 1000;
-        while (this.nextHitIndex < this.beatmapHitTimes.length && this.beatmapHitTimes[this.nextHitIndex] <= now + 35) {
-            if (this.beatmapHitTimes[this.nextHitIndex] >= now - 100) {
-                const volume = Math.max(0, Math.min(100, Number(Nutzerspeicher.getSetting('osuHitsoundVolume', 24)))) / 100;
-                if (typeof Sound !== 'undefined') Sound.play('cursor-tap', 1, volume);
-                if (Nutzerspeicher.getSetting('osuOptions', {}).starFountains) this.spawnHitStar();
+        while (this.nextHitIndex < events.length && events[this.nextHitIndex].time <= now + 35) {
+            const event = events[this.nextHitIndex];
+            if (event.time >= now - 100) {
+                this._playBeatmapEvent(track, event);
+                if (event.kind === 'head' && Nutzerspeicher.getSetting('osuOptions', {}).starFountains) this.spawnHitStar();
             }
             this.nextHitIndex++;
+        }
+    },
+
+    _playBeatmapEvent(track, event) {
+        const object = event.object;
+        const volume = Math.max(0, Math.min(100, Number(Nutzerspeicher.getSetting('osuHitsoundVolume', 24)))) / 100;
+        if (!volume) return;
+
+        const sampleSets = ['normal', 'normal', 'soft', 'drum'];
+        const beatmapSet = sampleSets[object.sampleSet] || sampleSets[
+            ({ normal: 1, soft: 2, drum: 3 })[track.beatmap?.sampleSet] || 1
+        ];
+        const additionSet = sampleSets[object.additionSet] || beatmapSet;
+        const hitSound = object.hitSound || 0;
+        const soundTypes = event.kind === 'tick'
+            ? ['slidertick']
+            : event.kind === 'repeat'
+                ? ['sliderslide', 'hitnormal']
+                : ['hitnormal'];
+        if (event.kind === 'head' && hitSound & 2) soundTypes.push('hitwhistle');
+        if (event.kind === 'head' && hitSound & 4) soundTypes.push('hitfinish');
+        if (event.kind === 'head' && hitSound & 8) soundTypes.push('hitclap');
+
+        const files = track.files || [];
+        const customName = object.customSample?.toLowerCase();
+        const customFile = customName && files.find(file => file.name.toLowerCase().split('/').pop() === customName.split('/').pop());
+        let played = false;
+        if (customFile && event.kind === 'head') {
+            played = this._playAudioSample(this.assetUrl(track, customFile), volume * this._sampleVolume(object));
+        }
+
+        const sets = event.kind === 'head' ? [beatmapSet, additionSet] : [beatmapSet];
+        soundTypes.forEach((type, index) => {
+            if (played && type === 'hitnormal') return;
+            const set = sets[Math.min(index, sets.length - 1)];
+            const sample = this._findSkinHitSound(set, type, object.sampleIndex);
+            if (sample && this._playAudioSample(sample, volume * this._sampleVolume(object))) played = true;
+        });
+        if (!played && typeof Sound !== 'undefined') Sound.play('cursor-tap', 1, volume * this._sampleVolume(object));
+    },
+
+    _sampleVolume(object) {
+        return object.sampleVolume > 0 ? Math.min(1, object.sampleVolume / 100) : 1;
+    },
+
+    _findSkinHitSound(set, type, sampleIndex = 0) {
+        const sounds = this.activeSkin?.assets?.hitSounds || {};
+        const prefix = `${set}-${type}`;
+        const indexed = sampleIndex ? `${prefix}${sampleIndex}.` : '';
+        const candidates = [indexed, `${prefix}.`, `${prefix}0.`].filter(Boolean);
+        const key = Object.keys(sounds).find(name => candidates.some(candidate => name.startsWith(candidate)));
+        if (!key) return '';
+        const cacheKey = `${this.activeSkin.id}:sound:${key}`;
+        if (!this.skinObjectUrls.has(cacheKey)) this.skinObjectUrls.set(cacheKey, URL.createObjectURL(sounds[key]));
+        return this.skinObjectUrls.get(cacheKey);
+    },
+
+    _playAudioSample(url, volume) {
+        if (!url) return false;
+        try {
+            const player = new Audio(url);
+            player.volume = Math.max(0, Math.min(1, volume));
+            player.play().catch(() => {});
+            return true;
+        } catch {
+            return false;
         }
     },
 
@@ -753,7 +1491,8 @@ const Mediaplayer = {
                 const key = button.dataset.osuSetting;
                 const enabled = Boolean(options[key]);
                 const master = key === 'enabled';
-                button.disabled = !master && !options.enabled;
+                button.disabled = (!master && !options.enabled)
+                    || (key === 'gameplay_autoplay_standard' && !options.gameplay_standard);
                 button.setAttribute('aria-pressed', String(enabled));
                 const label = button.querySelector('span');
                 if (label) label.textContent = enabled ? 'An' : 'Aus';
@@ -772,12 +1511,25 @@ const Mediaplayer = {
                     options.video = false;
                     options.storyboard = false;
                     options.starFountains = false;
+                    options.gameplay_standard = false;
+                    options.gameplay_autoplay_standard = false;
+                    options['wallpaper-override'] = false;
                 }
                 Nutzerspeicher.setSetting('osuOptions', options);
                 renderOptions();
+                this.gameplayElements.clear();
+                this.gameplaySliderPaths.clear();
+                this.gameplaySliderBalls.clear();
+                this.gameplayWindowIndex = 0;
+                this.activeGameplaySliders.clear();
+                document.querySelector('.Mediaplayer-gameplay')?.replaceChildren();
+                this.renderBeatmapGameplay();
+                this.syncBeatmapWallpaper();
+                this.startGameplayLoop();
             });
         });
         renderOptions();
+        this.attachOsuSkinControls();
 
         const crossfadeToggle = document.querySelector('[data-crossfade-toggle]');
         const crossfadeSlider = document.getElementById('crossfaded-id');
@@ -842,6 +1594,173 @@ const Mediaplayer = {
                 apply(next);
                 Nutzerspeicher.setSetting(key, next);
             });
+        });
+    },
+
+    attachOsuSkinControls() {
+        const input = document.querySelector('[data-osu-skin-upload]');
+        const uploadButton = document.querySelector('[data-osu-skin-upload-button]');
+        const defaultButton = document.querySelector('[data-osu-skin-default]');
+        if (uploadButton && input && !uploadButton.dataset.bound) {
+            uploadButton.dataset.bound = 'true';
+            uploadButton.addEventListener('click', () => input.click());
+        }
+        if (defaultButton && !defaultButton.dataset.bound) {
+            defaultButton.dataset.bound = 'true';
+            defaultButton.addEventListener('click', () => this.selectOsuSkin(''));
+        }
+        if (input && !input.dataset.bound) {
+            input.dataset.bound = 'true';
+            input.addEventListener('change', async () => {
+                const file = input.files?.[0];
+                input.value = '';
+                if (!file) return;
+                try {
+                    await this.importOsuSkin(file);
+                    window.ReleaseNotifications?.notify('osu!-Skin installiert', 'Der Skin wird für Kreise, Slider, Cursor und verfügbare Hitsounds verwendet.', 'notification-done');
+                } catch (error) {
+                    console.error('[Mediaplayer] osu!-Skin konnte nicht importiert werden:', error);
+                    window.ReleaseNotifications?.notify('Skin-Upload fehlgeschlagen', error.message || 'Die Datei ist kein lesbarer osu!-Skin.', 'notification-error');
+                }
+            });
+        }
+
+        if (!this.skinsLoaded && !this.skinLoadPromise) {
+            this.skinLoadPromise = this.readOsuSkins()
+                .then(skins => {
+                    this.skins = skins;
+                    this.activeSkin = skins.find(skin => skin.id === Nutzerspeicher.getSetting('osuSkinId', '')) || null;
+                    this.skinsLoaded = true;
+                    this.renderOsuSkins();
+                    this.renderBeatmapGameplay();
+                })
+                .catch(error => console.warn('[Mediaplayer] osu!-Skins konnten nicht geladen werden:', error))
+                .finally(() => { this.skinLoadPromise = null; });
+        } else {
+            this.renderOsuSkins();
+        }
+    },
+
+    async importOsuSkin(file) {
+        if (this.skinLoadPromise) await this.skinLoadPromise;
+        const entries = await this.extractZip(file);
+        const findImage = name => entries.find(entry => {
+            const basename = entry.name.toLowerCase().split('/').pop();
+            return basename === `${name}.png` || basename === `${name}@2x.png`;
+        })?.blob || null;
+        const hitcircle = findImage('hitcircle');
+        if (!hitcircle) throw new Error('Im Skin fehlt hitcircle.png.');
+
+        const config = entries.find(entry => entry.name.toLowerCase().endsWith('skin.ini'));
+        const configText = config ? await config.blob.text() : '';
+        const configuredName = configText.match(/^Name\s*:\s*(.+)$/mi)?.[1]?.trim();
+        const hitSounds = {};
+        entries.forEach(entry => {
+            const basename = entry.name.toLowerCase().split('/').pop();
+            if (/^(normal|soft|drum)-(hitnormal|hitwhistle|hitfinish|hitclap|sliderslide|slidertick)\d*\.(wav|ogg)$/i.test(basename)) {
+                hitSounds[basename] = entry.blob;
+            }
+        });
+        const skin = {
+            id: crypto.randomUUID(),
+            name: configuredName || file.name.replace(/\.(osk|zip)$/i, ''),
+            assets: {
+                hitcircle,
+                approachcircle: findImage('approachcircle'),
+                hitcircleoverlay: findImage('hitcircleoverlay'),
+                sliderfollowcircle: findImage('sliderfollowcircle'),
+                cursor: findImage('cursor'),
+                hitSounds
+            },
+            addedAt: Date.now()
+        };
+
+        await this.storeOsuSkin(skin);
+        this.skins.push(skin);
+        await this.selectOsuSkin(skin.id);
+    },
+
+    async selectOsuSkin(id) {
+        this.activeSkin = this.skins.find(skin => skin.id === id) || null;
+        Nutzerspeicher.setSetting('osuSkinId', this.activeSkin?.id || '');
+        this.renderOsuSkins();
+        this.gameplayElements.clear();
+        this.gameplaySliderPaths.clear();
+        this.gameplaySliderBalls.clear();
+        this.gameplayWindowIndex = 0;
+        this.activeGameplaySliders.clear();
+        document.querySelector('.Mediaplayer-gameplay')?.replaceChildren();
+        this.renderBeatmapGameplay();
+    },
+
+    async removeOsuSkin(id) {
+        const skin = this.skins.find(item => item.id === id);
+        if (!skin || !window.confirm(`osu!-Skin „${skin.name}“ entfernen?`)) return;
+        try {
+            await this.deleteOsuSkin(id);
+            this.skins = this.skins.filter(item => item.id !== id);
+            for (const [key, url] of this.skinObjectUrls) {
+                if (key.startsWith(`${id}:`)) {
+                    URL.revokeObjectURL(url);
+                    this.skinObjectUrls.delete(key);
+                }
+            }
+            if (this.activeSkin?.id === id) await this.selectOsuSkin('');
+            else this.renderOsuSkins();
+        } catch (error) {
+            console.error('[Mediaplayer] osu!-Skin konnte nicht entfernt werden:', error);
+        }
+    },
+
+    _skinAssetUrl(name) {
+        const blob = this.activeSkin?.assets?.[name];
+        if (!blob) return '';
+        const key = `${this.activeSkin.id}:${name}`;
+        if (!this.skinObjectUrls.has(key)) this.skinObjectUrls.set(key, URL.createObjectURL(blob));
+        return this.skinObjectUrls.get(key);
+    },
+
+    renderOsuSkins() {
+        const list = document.querySelector('[data-osu-skin-list]');
+        const preview = document.querySelector('[data-osu-skin-preview]');
+        const empty = document.querySelector('[data-osu-skin-empty]');
+        const name = document.querySelector('[data-osu-skin-name]');
+        const defaultButton = document.querySelector('[data-osu-skin-default]');
+        if (name) name.textContent = this.activeSkin?.name || 'Standard-Skin';
+        if (defaultButton) defaultButton.setAttribute('aria-pressed', String(!this.activeSkin));
+        const previewUrl = this._skinAssetUrl('hitcircle');
+        if (preview) {
+            preview.hidden = !previewUrl;
+            if (previewUrl) preview.src = previewUrl;
+        }
+        if (empty) empty.hidden = Boolean(previewUrl);
+        if (!list) return;
+
+        list.replaceChildren();
+        if (!this.skins.length) {
+            const message = document.createElement('p');
+            message.textContent = 'Noch keine Skins hochgeladen.';
+            list.append(message);
+            return;
+        }
+
+        this.skins.forEach(skin => {
+            const row = document.createElement('div');
+            row.className = 'osu-skin-row';
+            const select = document.createElement('button');
+            select.type = 'button';
+            select.className = 'Placeholder-btn osu-skin-select';
+            select.textContent = `${skin.name}${this.activeSkin?.id === skin.id ? ' · Aktiv' : ''}`;
+            select.setAttribute('aria-pressed', String(this.activeSkin?.id === skin.id));
+            select.addEventListener('click', () => this.selectOsuSkin(skin.id));
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'osu-skin-remove';
+            remove.textContent = 'Entfernen';
+            remove.addEventListener('click', () => this.removeOsuSkin(skin.id));
+            row.append(select, remove);
+            list.append(row);
         });
     },
 

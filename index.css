@@ -897,8 +897,44 @@ button.Placeholder-d-btn {
     padding: 18px 18px;
     border-radius: 14px;
     background-color: rgb(0 0 0 / 0.48);
-    transition: all 0.18s ease;
 }
+
+.osu-skin-overview {
+    padding: 18px 18px;
+    border-radius: 14px;
+    background-color: rgb(0 0 0 / 0.48);
+}
+
+.osu-skin-overview-preview {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    padding: 18px 18px;
+    border-radius: 14px;
+    background-color: rgb(0 0 0 / 0.48);
+}
+
+.osu-skin-overview-preview p { margin: 0; }
+.osu-skin-preview-image { width: 84px; height: 84px; object-fit: contain; }
+.osu-skin-upload { display: block; text-align: center; cursor: pointer; }
+
+.osu-skin-overview-scroll {
+    margin-top: 8px;
+    margin-bottom: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    height: 180px;
+    padding: 8px 8px;
+    border-radius: 14px;
+    background-color: rgb(0 0 0 / 0.48);
+}
+
+.osu-skin-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.osu-skin-select { flex: 1; text-align: left; }
+.osu-skin-remove { border: 0; border-radius: 10px; padding: 10px 12px; color: inherit; background: rgb(255 255 255 / 0.12); font: inherit; cursor: pointer; }
+.osu-skin-remove:hover { background: rgb(255 255 255 / 0.24); }
 
 .Hintergrund-header {
     font-weight: 600;
@@ -1593,6 +1629,138 @@ button.Placeholder-d-btn {
     border-top-right-radius: 14px;
     aspect-ratio: 16 / 9;
 }
+
+.Mediaplayer-gameplay {
+    position: absolute;
+    z-index: 2;
+    top: 0;
+    left: 50%;
+    height: 100%;
+    aspect-ratio: 4 / 3;
+    transform: translateX(-50%);
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.Mediaplayer-slider-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.Mediaplayer-slider-path path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.Mediaplayer-slider-outline { stroke: rgb(255 255 255 / 0.72); }
+.Mediaplayer-slider-body { stroke: #cb78e8; }
+
+.Mediaplayer-hit-circle {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    box-sizing: border-box;
+    padding: 0;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    pointer-events: auto;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.75));
+}
+
+.Mediaplayer-approach-circle,
+.Mediaplayer-hit-circle-face,
+.Mediaplayer-hit-circle-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+}
+
+.Mediaplayer-approach-circle {
+    border: 2px solid #fff;
+    transform: scale(3.4);
+    pointer-events: none;
+}
+
+.Mediaplayer-hit-circle-face {
+    border: 3px solid #fff;
+    background-color: #dd69b9;
+    box-shadow: inset 0 0 0 5px rgb(255 255 255 / 0.3);
+    pointer-events: none;
+}
+
+.Mediaplayer-hit-number {
+    position: absolute;
+    z-index: 1;
+    color: #fff;
+    font-size: clamp(8px, 2.1vw, 18px);
+    font-weight: 700;
+    line-height: 1;
+    text-shadow: 0 1px 3px #000;
+}
+
+.Mediaplayer-hit-circle-overlay { pointer-events: none; }
+.Mediaplayer-hit-circle.is-slider .Mediaplayer-hit-circle-face { background-color: #6b9eff; }
+.Mediaplayer-hit-circle.is-spinner .Mediaplayer-hit-circle-face { background-color: #9b77ed; }
+.Mediaplayer-hit-circle.is-hit { opacity: 0; transform: translate(-50%, -50%) scale(.7); transition: opacity .1s, transform .1s; }
+.Mediaplayer-hit-circle:disabled { cursor: default; }
+
+.Mediaplayer-slider-ball {
+    position: absolute;
+    z-index: 2;
+    aspect-ratio: 1;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    box-sizing: border-box;
+    background-color: #f5c9ff;
+    background-position: center;
+    background-size: contain;
+    box-shadow: 0 1px 6px rgb(0 0 0 / 0.7);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.Mediaplayer-osu-cursor {
+    position: absolute;
+    z-index: 4;
+    left: 50%;
+    top: 50%;
+    width: 28px;
+    height: 28px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-sizing: border-box;
+    opacity: 0;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: opacity 80ms linear;
+}
+
+.Mediaplayer-osu-cursor::before,
+.Mediaplayer-osu-cursor::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    background: #fff;
+    transform: translate(-50%, -50%);
+}
+
+.Mediaplayer-osu-cursor::before { width: 2px; height: 38px; }
+.Mediaplayer-osu-cursor::after { width: 38px; height: 2px; }
+.Mediaplayer-osu-cursor.is-visible { opacity: 1; }
+.Mediaplayer-osu-cursor img { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; }
+.Mediaplayer-osu-cursor img[hidden] { display: none; }
+.Mediaplayer-osu-cursor.is-skinned { border-color: transparent; }
+.Mediaplayer-osu-cursor.is-skinned::before,
+.Mediaplayer-osu-cursor.is-skinned::after { display: none; }
 
 .cover-overlay {
     position: absolute;
