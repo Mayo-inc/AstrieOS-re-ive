@@ -46,6 +46,12 @@ body {
     background-color: var(--material-you-accent);
 }
 
+.material-you-enabled .Release-toast {
+    background-color: color-mix(in srgb, var(--material-you-dark) 92%, transparent);
+    border-color: color-mix(in srgb, var(--material-you-light) 45%, transparent);
+    color: var(--material-you-dark-text);
+}
+
 .material-you-enabled .Placeholder-user-btn.aktiv {
     box-shadow: 0 0 0 2px var(--material-you-light);
 }
@@ -884,14 +890,10 @@ button.Placeholder-d-btn {
 
 .Einstellungen-hintergrund-display.Open, .Einstellungen-farbe-display.Open {
     display: block;
-    opacity: 1;
-    pointer-events: all;
 }
 
 .Einstellungen-hintergrund-display, .Einstellungen-farbe-display {
     display: none;
-    opacity: 0;
-    pointer-events: none;
     padding: 18px 18px;
     border-radius: 14px;
     background-color: rgb(0 0 0 / 0.48);
@@ -1457,6 +1459,20 @@ button.Placeholder-d-btn {
     padding: 12px;
     border-radius: 14px;
     background: rgb(0 0 0 / 0.18);
+}
+
+.material-you-enabled .Benachrichtigung-content .Benachricht-linie {
+    background-color: var(--material-you-light);
+}
+
+.material-you-enabled .Benachrichtigung-content .Benachricht-item {
+    background-color: color-mix(in srgb, var(--material-you-light) 12%, var(--material-you-dark));
+    border: 1px solid color-mix(in srgb, var(--material-you-light) 30%, transparent);
+}
+
+.material-you-enabled .Benachrichtigung-content .Benachricht-clear:hover {
+    background-color: var(--material-you-light);
+    color: var(--material-you-light-text);
 }
 
 .Benachricht-item img { width: 30px; height: 30px; }

@@ -1,1 +1,1 @@
-self.ASTRIEOS_VERSION = '0.1.4';
+self.ASTRIEOS_VERSION = '0.1.6';

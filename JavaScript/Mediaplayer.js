@@ -123,60 +123,108 @@ const Mediaplayer = {
         const input = document.querySelector('[data-player-upload]');
         if (input) input.value = '';
         if (!files.length) return;
-        const fileMap = new Map(files.map(file => [file.name.toLowerCase(), file]));
-        const beatmaps = files.filter(file => file.name.toLowerCase().endsWith('.osu'));
-        const archives = files.filter(file => file.name.toLowerCase().endsWith('.osz'));
-        const beatmapAudioNames = new Set();
-        const coverFiles = files.filter(file => file.type.startsWith('image/') || file.type.startsWith('video/') || /\.(png|jpe?g|webp|gif|apng|mp4|webm|mov)$/i.test(file.name));
+
+        window.ReleaseNotifications?.notify(
+            'Medien-Upload gestartet',
+            `${files.length} ${files.length === 1 ? 'Datei wird' : 'Dateien werden'} in deine Mediathek importiert …`,
+            'notification-default'
+        );
+
         let added = 0;
+        let failed = 0;
+        try {
+            const fileMap = new Map(files.map(file => [file.name.toLowerCase(), file]));
+            const beatmaps = files.filter(file => file.name.toLowerCase().endsWith('.osu'));
+            const archives = files.filter(file => file.name.toLowerCase().endsWith('.osz'));
+            const beatmapAudioNames = new Set();
+            const coverFiles = files.filter(file => file.type.startsWith('image/') || file.type.startsWith('video/') || /\.(png|jpe?g|webp|gif|apng|mp4|webm|mov)$/i.test(file.name));
 
-        for (const mapFile of beatmaps) {
-            try {
-                const metadata = this.parseBeatmap(await mapFile.text());
-                if (metadata.audioFilename) beatmapAudioNames.add(metadata.audioFilename.split('/').pop().toLowerCase());
-                const audioFile = fileMap.get(metadata.audioFilename.toLowerCase()) || files.find(file => file.name.toLowerCase().split('/').pop() === metadata.audioFilename.split('/').pop().toLowerCase());
-                if (audioFile) {
-                    await this.addTrack(audioFile, { title: metadata.title || audioFile.name, artist: metadata.artist, beatmap: metadata, files });
-                    added++;
-                } else this.setStatus(`Beatmap-Audio nicht mit ausgewählt: ${metadata.audioFilename}`);
-            } catch (error) {
-                console.warn('[Mediaplayer] Beatmap konnte nicht gelesen werden:', error);
-            }
-        }
-
-        for (const archive of archives) {
-            try {
-                const entries = await this.extractZip(archive);
-                const mapEntry = entries.find(entry => entry.name.toLowerCase().endsWith('.osu'));
-                if (!mapEntry) continue;
-                const metadata = this.parseBeatmap(await mapEntry.blob.text());
-                if (metadata.audioFilename) beatmapAudioNames.add(metadata.audioFilename.split('/').pop().toLowerCase());
-                const audioEntry = entries.find(entry => entry.name.toLowerCase().split('/').pop() === metadata.audioFilename.toLowerCase());
-                if (audioEntry) {
-                    await this.addTrack(audioEntry.blob, { title: metadata.title || metadata.audioFilename, artist: metadata.artist, beatmap: metadata, files: entries.map(entry => entry.file) });
-                    added++;
+            for (const mapFile of beatmaps) {
+                try {
+                    const metadata = this.parseBeatmap(await mapFile.text());
+                    if (metadata.audioFilename) beatmapAudioNames.add(metadata.audioFilename.split('/').pop().toLowerCase());
+                    const audioFile = fileMap.get(metadata.audioFilename.toLowerCase()) || files.find(file => file.name.toLowerCase().split('/').pop() === metadata.audioFilename.split('/').pop().toLowerCase());
+                    if (audioFile) {
+                        await this.addTrack(audioFile, { title: metadata.title || audioFile.name, artist: metadata.artist, beatmap: metadata, files });
+                        added++;
+                    } else {
+                        failed++;
+                        this.setStatus(`Beatmap-Audio nicht mit ausgewählt: ${metadata.audioFilename}`);
+                    }
+                } catch (error) {
+                    failed++;
+                    console.warn('[Mediaplayer] Beatmap konnte nicht gelesen werden:', error);
                 }
-            } catch (error) {
-                console.error('[Mediaplayer] .osz konnte nicht entpackt werden:', error);
-                this.setStatus('Diese .osz-Datei konnte nicht entpackt werden.');
             }
-        }
 
-        for (const file of files.filter(file => file.type.startsWith('audio/') || /\.(mp3|ogg|wav|m4a|aac|flac|opus)$/i.test(file.name))) {
-            if (beatmapAudioNames.has(file.name.toLowerCase())) continue;
-            await this.addTrack(file, { title: file.name.replace(/\.[^.]+$/, ''), artist: 'Lokale Datei', files: coverFiles });
-            added++;
-        }
-        const containsAudio = files.some(file => file.type.startsWith('audio/') || /\.(mp3|ogg|wav|m4a|aac|flac|opus)$/i.test(file.name));
-        if (!containsAudio && !beatmaps.length && !archives.length) {
-            for (const file of files.filter(file => file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|ogv)$/i.test(file.name))) {
-                await this.addTrack(file, { title: file.name.replace(/\.[^.]+$/, ''), artist: 'Lokales Video', type: 'video', files: [file] });
+            for (const archive of archives) {
+                try {
+                    const entries = await this.extractZip(archive);
+                    const mapEntry = entries.find(entry => entry.name.toLowerCase().endsWith('.osu'));
+                    if (!mapEntry) {
+                        failed++;
+                        continue;
+                    }
+                    const metadata = this.parseBeatmap(await mapEntry.blob.text());
+                    if (metadata.audioFilename) beatmapAudioNames.add(metadata.audioFilename.split('/').pop().toLowerCase());
+                    const audioEntry = entries.find(entry => entry.name.toLowerCase().split('/').pop() === metadata.audioFilename.toLowerCase());
+                    if (audioEntry) {
+                        await this.addTrack(audioEntry.blob, { title: metadata.title || metadata.audioFilename, artist: metadata.artist, beatmap: metadata, files: entries.map(entry => entry.file) });
+                        added++;
+                    } else failed++;
+                } catch (error) {
+                    failed++;
+                    console.error('[Mediaplayer] .osz konnte nicht entpackt werden:', error);
+                    this.setStatus('Diese .osz-Datei konnte nicht entpackt werden.');
+                }
+            }
+
+            for (const file of files.filter(file => file.type.startsWith('audio/') || /\.(mp3|ogg|wav|m4a|aac|flac|opus)$/i.test(file.name))) {
+                if (beatmapAudioNames.has(file.name.toLowerCase())) continue;
+                await this.addTrack(file, { title: file.name.replace(/\.[^.]+$/, ''), artist: 'Lokale Datei', files: coverFiles });
                 added++;
             }
+            const containsAudio = files.some(file => file.type.startsWith('audio/') || /\.(mp3|ogg|wav|m4a|aac|flac|opus)$/i.test(file.name));
+            if (!containsAudio && !beatmaps.length && !archives.length) {
+                for (const file of files.filter(file => file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|ogv)$/i.test(file.name))) {
+                    await this.addTrack(file, { title: file.name.replace(/\.[^.]+$/, ''), artist: 'Lokales Video', type: 'video', files: [file] });
+                    added++;
+                }
+            }
+            this.renderPlaylist();
+            this.setStatus(added ? `${added} Titel zur Bibliothek hinzugefügt.` : 'Keine unterstützten Audiodateien gefunden.');
+            if (added && this.currentIndex < 0) this.select(0, true);
+
+            if (added && failed) {
+                window.ReleaseNotifications?.notify(
+                    'Upload teilweise fertig',
+                    `${added} ${added === 1 ? 'Medium wurde' : 'Medien wurden'} hinzugefügt; einige Dateien konnten nicht importiert werden.`,
+                    'notification-error'
+                );
+            } else if (added) {
+                window.ReleaseNotifications?.notify(
+                    'Upload fertig! :D',
+                    `${added} ${added === 1 ? 'Medium wurde' : 'Medien wurden'} in deine Mediathek übernommen.`,
+                    'notification-done'
+                );
+            } else {
+                window.ReleaseNotifications?.notify(
+                    failed ? 'Upload fehlgeschlagen' : 'Keine Medien erkannt',
+                    failed ? 'Die ausgewählten Dateien konnten nicht importiert werden.' : 'Wähle unterstützte Audio-, Video- oder osu!-Dateien aus.',
+                    failed ? 'notification-error' : 'notification-cancel'
+                );
+            }
+        } catch (error) {
+            console.error('[Mediaplayer] Medienimport fehlgeschlagen:', error);
+            this.setStatus('Medien konnten nicht vollständig importiert werden.');
+            window.ReleaseNotifications?.notify(
+                added ? 'Upload teilweise fertig' : 'Upload fehlgeschlagen',
+                added
+                    ? `${added} ${added === 1 ? 'Medium wurde' : 'Medien wurden'} übernommen; der Import wurde vorzeitig beendet.`
+                    : 'Die ausgewählten Dateien konnten nicht in die Mediathek übernommen werden.',
+                'notification-error'
+            );
         }
-        this.renderPlaylist();
-        this.setStatus(added ? `${added} Titel zur Bibliothek hinzugefügt.` : 'Keine unterstützten Audiodateien gefunden.');
-        if (added && this.currentIndex < 0) this.select(0, true);
     },
 
     parseBeatmap(text) {
