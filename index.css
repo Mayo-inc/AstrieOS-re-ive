@@ -136,7 +136,7 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background-image: linear-gradient(28deg, #e0a0ff, #000000);
+    background-image: linear-gradient(24deg, #e0a0ff, #000000);
     color: #ffffff;
     z-index: 10000000;
     pointer-events: all;
@@ -955,6 +955,7 @@ button.Placeholder-d-btn {
 .Hintergrund-nutzer-upload, .Hintergrund-audio-erlauben {
     width: 100%;
     box-sizing: border-box;
+    border: none;
     padding: 8px 8px;
     border-radius: 14px;
     background-color: rgb(0 0 0 / 0.45);
@@ -1633,11 +1634,9 @@ button.Placeholder-d-btn {
 .Mediaplayer-gameplay {
     position: absolute;
     z-index: 2;
-    top: 0;
-    left: 50%;
+    inset: 0;
+    width: 100%;
     height: 100%;
-    aspect-ratio: 4 / 3;
-    transform: translateX(-50%);
     overflow: hidden;
     pointer-events: none;
 }
@@ -1652,8 +1651,8 @@ button.Placeholder-d-btn {
 }
 
 .Mediaplayer-slider-path path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.Mediaplayer-slider-outline { stroke: rgb(255 255 255 / 0.72); }
-.Mediaplayer-slider-body { stroke: #cb78e8; }
+.Mediaplayer-slider-outline { stroke: var(--osu-slider-border-color, var(--osu-combo-color, rgb(255 255 255 / 0.72))); }
+.Mediaplayer-slider-body { stroke: var(--osu-slider-track-color, var(--osu-combo-color, #cb78e8)); }
 
 .Mediaplayer-hit-circle {
     position: absolute;
@@ -1670,6 +1669,7 @@ button.Placeholder-d-btn {
     pointer-events: auto;
     transform: translate(-50%, -50%);
     filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.75));
+    border-color: var(--osu-combo-color, #fff);
 }
 
 .Mediaplayer-approach-circle,
@@ -1684,14 +1684,14 @@ button.Placeholder-d-btn {
 }
 
 .Mediaplayer-approach-circle {
-    border: 2px solid #fff;
+    border: 2px solid var(--osu-combo-color, #fff);
     transform: scale(3.4);
     pointer-events: none;
 }
 
 .Mediaplayer-hit-circle-face {
-    border: 3px solid #fff;
-    background-color: #dd69b9;
+    border: 3px solid var(--osu-combo-color, #fff);
+    background-color: var(--osu-combo-color, #dd69b9);
     box-shadow: inset 0 0 0 5px rgb(255 255 255 / 0.3);
     pointer-events: none;
 }
@@ -1707,8 +1707,11 @@ button.Placeholder-d-btn {
 }
 
 .Mediaplayer-hit-circle-overlay { pointer-events: none; }
-.Mediaplayer-hit-circle.is-slider .Mediaplayer-hit-circle-face { background-color: #6b9eff; }
-.Mediaplayer-hit-circle.is-spinner .Mediaplayer-hit-circle-face { background-color: #9b77ed; }
+.Mediaplayer-hit-circle.has-custom-skin { border-color: transparent; }
+.Mediaplayer-approach-circle.is-skinned { border-color: transparent; }
+.Mediaplayer-hit-circle-face.is-skinned { border-color: transparent; background-color: transparent; box-shadow: none; }
+.Mediaplayer-hit-circle.is-slider .Mediaplayer-hit-circle-face { background-color: var(--osu-combo-color, #6b9eff); }
+.Mediaplayer-hit-circle.is-spinner .Mediaplayer-hit-circle-face { background-color: var(--osu-combo-color, #9b77ed); }
 .Mediaplayer-hit-circle.is-hit { opacity: 0; transform: translate(-50%, -50%) scale(.7); transition: opacity .1s, transform .1s; }
 .Mediaplayer-hit-circle:disabled { cursor: default; }
 
@@ -1719,13 +1722,14 @@ button.Placeholder-d-btn {
     border: 3px solid #fff;
     border-radius: 50%;
     box-sizing: border-box;
-    background-color: #f5c9ff;
+    background-color: var(--osu-combo-color, #f5c9ff);
     background-position: center;
     background-size: contain;
     box-shadow: 0 1px 6px rgb(0 0 0 / 0.7);
     transform: translate(-50%, -50%);
     pointer-events: none;
 }
+.Mediaplayer-slider-ball.has-custom-skin { border-color: transparent; background-color: transparent; box-shadow: none; }
 
 .Mediaplayer-osu-cursor {
     position: absolute;

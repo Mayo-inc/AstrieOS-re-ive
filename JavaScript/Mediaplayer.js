@@ -16,6 +16,15 @@ const Mediaplayer = {
     audioContext: null,
     analyser: null,
     gainNode: null,
+    crossfadeFrame: 0,
+    crossfadeGeneration: 0,
+    crossfadeActive: false,
+    crossfadeStartVolume: 0,
+    crossfadeOutgoingStart: 0,
+    backgroundVolumeFactor: 0,
+    backgroundFadeFrame: 0,
+    backgroundFadeGeneration: 0,
+    autoCrossfadeTriggered: false,
     visualizerFrame: 0,
     titleResizeObserver: null,
     gameplayFrame: 0,
@@ -71,6 +80,22 @@ const Mediaplayer = {
             request.onerror = () => reject(request.error);
         });
         return this.dbPromise;
+    },
+
+    async closeDB() {
+        this.audio.pause();
+        this.stopGameplayLoop();
+        this.cancelCrossfade();
+        this.stopFadeOutPlayers();
+        const databasePromise = this.dbPromise;
+        this.dbPromise = null;
+        if (databasePromise) {
+            try { (await databasePromise).close(); } catch {}
+        }
+        for (const url of this.objectUrls.values()) URL.revokeObjectURL(url);
+        this.objectUrls.clear();
+        for (const url of this.skinObjectUrls.values()) URL.revokeObjectURL(url);
+        this.skinObjectUrls.clear();
     },
 
     async storeTrack(track) {
@@ -152,6 +177,7 @@ const Mediaplayer = {
                 seek.value = String(Math.round(this.audio.currentTime / this.audio.duration * 1000));
             }
             this.renderTime();
+            this.maybeAutoCrossfade();
             this.syncCoverPlayback(!this.audio.paused);
             this.drawVisualizer();
         });
@@ -192,6 +218,10 @@ const Mediaplayer = {
             this.stopGameplayLoop();
         });
         this.audio.addEventListener('error', () => this.setStatus('Diese Audiodatei kann der Browser nicht abspielen.'));
+        this.backgroundVolumeFactor = document.hidden ? 1 : 0;
+        document.addEventListener('visibilitychange', () => this.setBackgroundDuck(document.hidden));
+        window.addEventListener('blur', () => this.setBackgroundDuck(true));
+        window.addEventListener('focus', () => this.setBackgroundDuck(document.hidden));
     },
 
     async importFiles(files) {
@@ -307,6 +337,7 @@ const Mediaplayer = {
         const metadata = text.match(/\[Metadata\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
         const events = text.match(/\[Events\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
         const hitObjects = text.match(/\[HitObjects\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
+        const colours = text.match(/\[(?:Colours|Colors)\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
         const difficulty = text.match(/\[Difficulty\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
         const timing = text.match(/\[TimingPoints\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
         const value = (source, key) => source.match(new RegExp(`^${key}:(.*)$`, 'mi'))?.[1]?.trim() || '';
@@ -326,6 +357,8 @@ const Mediaplayer = {
 
         const hitObjectData = [];
         const hitEvents = [];
+        const comboColors = this._parseComboColors(colours);
+        let comboColorIndex = -1;
         hitObjects.split(/\r?\n/).forEach(line => {
             const fields = line.split(',');
             const x = Number(fields[0]);
@@ -336,6 +369,8 @@ const Mediaplayer = {
 
             const kind = type & 8 ? 'spinner' : type & 2 ? 'slider' : type & 1 ? 'circle' : null;
             if (!kind) return;
+            if (type & 4) comboColorIndex = comboColorIndex < 0 ? 0 : comboColorIndex + 1 + ((type >> 4) & 7);
+            if (comboColorIndex < 0) comboColorIndex = 0;
 
             const sampleField = fields[kind === 'slider' ? 10 : kind === 'spinner' ? 6 : 5] || '';
             const sampleParts = sampleField.split(':');
@@ -346,6 +381,7 @@ const Mediaplayer = {
                 endTime: kind === 'spinner' ? Number(fields[5]) || time : time,
                 kind,
                 hitSound: Number(fields[4]) || 0,
+                comboColorIndex,
                 sampleSet: Number(sampleParts[0]) || 0,
                 additionSet: Number(sampleParts[1]) || 0,
                 sampleIndex: Number(sampleParts[2]) || 0,
@@ -406,6 +442,7 @@ const Mediaplayer = {
         return {
             mode,
             sampleSet: value(section, 'SampleSet').toLowerCase() || 'normal',
+            comboColors,
             audioFilename: value(section, 'AudioFilename'),
             title: value(metadata, 'TitleUnicode') || value(metadata, 'Title'),
             artist: value(metadata, 'ArtistUnicode') || value(metadata, 'Artist'),
@@ -417,6 +454,37 @@ const Mediaplayer = {
             hitObjects: hitObjectData,
             hitEvents,
             hitTimes: hitEvents.map(event => event.time)
+        };
+    },
+
+    _parseComboColors(sectionText) {
+        return sectionText.split(/\r?\n/).map(line => {
+            const match = line.match(/^Combo(\d+)\s*:\s*(.+)$/i);
+            if (!match) return null;
+            const color = this._parseRgbColor(match[2]);
+            return color ? { index: Number(match[1]), color } : null;
+        }).filter(Boolean).sort((a, b) => a.index - b.index).map(item => item.color);
+    },
+
+    _parseRgbColor(value) {
+        const channels = String(value).match(/^\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*$/);
+        if (!channels) return '';
+        const color = channels.slice(1).map(channel => Math.max(0, Math.min(255, Number(channel))));
+        return color.every(Number.isFinite) ? `rgb(${color.join(', ')})` : '';
+    },
+
+    _parseSkinConfig(text) {
+        const colours = text.match(/\[(?:Colours|Colors)\]([\s\S]*?)(?:\r?\n\[|$)/i)?.[1] || '';
+        const readColor = key => {
+            const value = colours.match(new RegExp(`^${key}\\s*:\\s*(.+)$`, 'mi'))?.[1];
+            return value ? this._parseRgbColor(value) : '';
+        };
+        const overlayAboveNumber = text.match(/^HitCircleOverlayAboveNumber\s*:\s*(\d+)/mi)?.[1];
+        return {
+            comboColors: this._parseComboColors(colours),
+            sliderBorderColor: readColor('SliderBorder'),
+            sliderTrackColor: readColor('SliderTrackOverride'),
+            hitCircleOverlayAboveNumber: overlayAboveNumber === '1'
         };
     },
 
@@ -610,6 +678,13 @@ const Mediaplayer = {
         const list = document.querySelector('.Mediaplayer-box-scroll');
         if (!list) return;
         list.replaceChildren();
+        if (!this.tracks.length) {
+            const empty = document.createElement('p');
+            empty.className = 'Mediaplayer-playlist-empty';
+            empty.textContent = 'Noch keine Musik in der Playlist.';
+            list.append(empty);
+            return;
+        }
         this.tracks.forEach((track, index) => {
             const row = document.createElement('div');
             row.className = 'Mediaplayer-btn';
@@ -638,14 +713,19 @@ const Mediaplayer = {
         });
     },
 
-    select(index, play = false) {
+    select(index, play = false, requestedCrossfadeSeconds = null) {
         if (!this.tracks.length) return;
         const wasPlaying = !this.audio.paused;
+        const configuredCrossfade = Math.max(1, Math.min(15, Number(Nutzerspeicher.getSetting('crossfadeSeconds', 8)) || 8));
         const crossfadeSeconds = Nutzerspeicher.getSetting('crossfadeEnabled', false)
-            ? Number(Nutzerspeicher.getSetting('crossfadeSeconds', 0))
+            ? Math.max(0, Math.min(15, requestedCrossfadeSeconds ?? configuredCrossfade))
             : 0;
         this.stopFadeOutPlayers();
-        if (play && wasPlaying && crossfadeSeconds > 0) this.fadePreviousAudio(crossfadeSeconds);
+        const previousAudio = play && wasPlaying && crossfadeSeconds > 0
+            ? this.fadePreviousAudio()
+            : Promise.resolve(null);
+        this.cancelCrossfade();
+        this.autoCrossfadeTriggered = false;
         this.currentIndex = (index + this.tracks.length) % this.tracks.length;
         const track = this.tracks[this.currentIndex];
         let url = this.objectUrls.get(track.id);
@@ -680,14 +760,31 @@ const Mediaplayer = {
             this.nextHitIndex = 0;
         }
         if (play) {
-            if (this.gainNode) {
-                this.audio.volume = 1;
-                this.gainNode.gain.value = crossfadeSeconds > 0 ? 0 : this.targetVolume();
-            } else this.audio.volume = crossfadeSeconds > 0 ? 0 : this.targetVolume();
+            this.setAudioVolume(this.audio, crossfadeSeconds > 0 ? 0 : this.effectiveTargetVolume());
             this.audio.play().then(() => {
-                if (crossfadeSeconds > 0) this.fadeAudio(this.audio, this.targetVolume(), crossfadeSeconds);
+                if (crossfadeSeconds > 0) {
+                    previousAudio.then(previous => {
+                        if (!Nutzerspeicher.getSetting('crossfadeEnabled', false)) {
+                            if (previous) this.stopFadeOutPlayer(previous);
+                            this.setAudioVolume(this.audio, this.effectiveTargetVolume());
+                        } else if (previous && !this.audio.paused) this.crossfadePlayers(previous, crossfadeSeconds);
+                        else this.fadeAudio(this.audio, () => this.effectiveTargetVolume(), crossfadeSeconds);
+                    });
+                }
             }).catch(error => this.setStatus(`Wiedergabe konnte nicht gestartet werden: ${error.message}`));
         }
+    },
+
+    maybeAutoCrossfade() {
+        if (this.autoCrossfadeTriggered || this.tracks.length < 2 || this.audio.paused) return;
+        if (!Nutzerspeicher.getSetting('crossfadeEnabled', false)) return;
+        const configured = Math.max(1, Math.min(15, Number(Nutzerspeicher.getSetting('crossfadeSeconds', 8)) || 8));
+        const duration = this.audio.duration;
+        if (!configured || !Number.isFinite(duration) || duration <= 0) return;
+        const transition = Math.min(configured, duration * 0.4);
+        if (duration - this.audio.currentTime > transition) return;
+        this.autoCrossfadeTriggered = true;
+        this.step(1, transition);
     },
 
     applyBeatmap(track) {
@@ -950,6 +1047,13 @@ const Mediaplayer = {
         if (this.gameplaySliderPaths.has(index)) return;
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         group.classList.add('Mediaplayer-slider-path');
+        const track = this.tracks[this.currentIndex];
+        const comboColor = this._comboColor(track?.beatmap, object);
+        if (comboColor) group.style.setProperty('--osu-combo-color', comboColor);
+        const borderColor = this.activeSkin?.config?.sliderBorderColor;
+        if (borderColor) group.style.setProperty('--osu-slider-border-color', borderColor);
+        const trackColor = this.activeSkin?.config?.sliderTrackColor;
+        if (trackColor) group.style.setProperty('--osu-slider-track-color', trackColor);
         const pathData = object.pathPoints.map((point, pointIndex) => `${pointIndex ? 'L' : 'M'}${point.x} ${point.y}`).join(' ');
         const outline = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         outline.setAttribute('d', pathData);
@@ -964,6 +1068,13 @@ const Mediaplayer = {
         this.gameplaySliderPaths.set(index, group);
     },
 
+    _comboColor(beatmap, object) {
+        const beatmapColors = beatmap?.comboColors || [];
+        const skinColors = this.activeSkin?.config?.comboColors || [];
+        const palette = beatmapColors.length ? beatmapColors : skinColors;
+        return palette.length ? palette[(object?.comboColorIndex || 0) % palette.length] : '';
+    },
+
     _updateSliderBall(overlay, object, index, now, diameter) {
         let ball = this.gameplaySliderBalls.get(index);
         if (!ball || !ball.isConnected) {
@@ -972,7 +1083,10 @@ const Mediaplayer = {
             ball.className = 'Mediaplayer-slider-ball';
             ball.dataset.sliderBall = String(index);
             const skin = this._skinAssetUrl('sliderfollowcircle');
-            if (skin) ball.style.backgroundImage = `url("${skin}")`;
+            if (skin) {
+                ball.style.backgroundImage = `url("${skin}")`;
+                ball.classList.add('has-custom-skin');
+            }
             overlay.append(ball);
             this.gameplaySliderBalls.set(index, ball);
         }
@@ -986,6 +1100,8 @@ const Mediaplayer = {
         ball.style.left = `${point.x / 512 * 100}%`;
         ball.style.top = `${point.y / 384 * 100}%`;
         ball.style.width = `${diameter / 512 * 100}%`;
+        const comboColor = this._comboColor(this.tracks[this.currentIndex]?.beatmap, object);
+        if (comboColor) ball.style.setProperty('--osu-combo-color', comboColor);
         if (Nutzerspeicher.getSetting('osuOptions', {}).gameplay_autoplay_standard) {
             this._moveGameplayCursor(point.x, point.y);
         }
@@ -1005,6 +1121,9 @@ const Mediaplayer = {
         const circle = document.createElement('button');
         circle.type = 'button';
         circle.className = `Mediaplayer-hit-circle is-${object.kind}`;
+        const comboColor = this._comboColor(this.tracks[this.currentIndex]?.beatmap, object);
+        if (comboColor) circle.style.setProperty('--osu-combo-color', comboColor);
+        circle.classList.toggle('has-custom-skin', Boolean(this.activeSkin));
         circle.dataset.hitObject = String(index);
         circle.setAttribute('aria-label', `Beatmap-Kreis ${index + 1}`);
         circle.style.left = `${object.x / 512 * 100}%`;
@@ -1015,19 +1134,31 @@ const Mediaplayer = {
         const approach = document.createElement('span');
         approach.className = 'Mediaplayer-approach-circle';
         const skin = this._skinAssetUrl('approachcircle');
-        if (skin) approach.style.backgroundImage = `url("${skin}")`;
+        if (skin) {
+            approach.style.backgroundImage = `url("${skin}")`;
+            approach.classList.add('is-skinned');
+        }
 
         const hitCircle = document.createElement('span');
         hitCircle.className = 'Mediaplayer-hit-circle-face';
         const hitCircleSkin = this._skinAssetUrl('hitcircle');
-        if (hitCircleSkin) hitCircle.style.backgroundImage = `url("${hitCircleSkin}")`;
+        if (hitCircleSkin) {
+            hitCircle.style.backgroundImage = `url("${hitCircleSkin}")`;
+            hitCircle.classList.add('is-skinned');
+        }
 
         const overlaySkin = this._skinAssetUrl('hitcircleoverlay');
         if (overlaySkin) {
             const overlay = document.createElement('span');
             overlay.className = 'Mediaplayer-hit-circle-overlay';
             overlay.style.backgroundImage = `url("${overlaySkin}")`;
-            hitCircle.append(overlay);
+            if (this.activeSkin?.config?.hitCircleOverlayAboveNumber) {
+                overlay.style.zIndex = '2';
+                hitCircle.append(overlay);
+            } else {
+                overlay.style.zIndex = '0';
+                hitCircle.prepend(overlay);
+            }
         }
         const number = document.createElement('span');
         number.className = 'Mediaplayer-hit-number';
@@ -1163,7 +1294,15 @@ const Mediaplayer = {
     async removeTrack(id) {
         const index = this.tracks.findIndex(track => track.id === id);
         if (index < 0) return;
-        if (!window.confirm(`„${this.tracks[index].title}“ aus der Mediathek löschen?`)) return;
+        const confirmed = window.Popup
+            ? await window.Popup.confirm(`„${this.tracks[index].title}“ aus der Mediathek löschen?`, {
+                title: 'Medium löschen',
+                type: 'warning',
+                confirmLabel: 'Löschen',
+                danger: true
+            })
+            : window.confirm(`„${this.tracks[index].title}“ aus der Mediathek löschen?`);
+        if (!confirmed) return;
         const wasCurrent = index === this.currentIndex;
         if (wasCurrent) {
             this.audio.pause();
@@ -1205,43 +1344,219 @@ const Mediaplayer = {
         this.setStatus('Titel aus der Mediathek gelöscht.');
     },
 
+    async clearLibrary() {
+        this.audio.pause();
+        this.stopGameplayLoop();
+        this.cancelCrossfade();
+        this.stopFadeOutPlayers();
+
+        const database = await this.openDB();
+        await new Promise((resolve, reject) => {
+            const transaction = database.transaction(this.DB_STORE, 'readwrite');
+            transaction.objectStore(this.DB_STORE).clear();
+            transaction.oncomplete = resolve;
+            transaction.onerror = () => reject(transaction.error || new Error('Playlist konnte nicht geleert werden.'));
+            transaction.onabort = () => reject(transaction.error || new Error('Leeren der Playlist wurde abgebrochen.'));
+        });
+
+        for (const objectUrl of this.objectUrls.values()) URL.revokeObjectURL(objectUrl);
+        this.objectUrls.clear();
+        this.tracks = [];
+        this.currentIndex = -1;
+        this.beatmapHitTimes = [];
+        this.nextHitIndex = 0;
+        this.gameplayHandled.clear();
+        this.gameplayElements.clear();
+        this.gameplaySliderPaths.clear();
+        this.gameplaySliderBalls.clear();
+        this.gameplayWindowIndex = 0;
+        this.activeGameplaySliders.clear();
+        this.audio.removeAttribute('src');
+        this.audio.load();
+        this.renderPlayButton(false);
+        this.syncCoverPlayback(false);
+        this.clearBeatmapVisuals();
+        document.querySelector('.Mediaplayer-gameplay')?.remove();
+        document.querySelector('.Mediaplayer-title').textContent = 'Keine Musik ausgewählt';
+        document.getElementById('Mediaplayer-arthur-id').textContent = '—';
+        Nutzerspeicher.setSetting('mediaplayerCurrentTrack', null);
+        await this.syncBeatmapWallpaper();
+        this.renderPlaylist();
+    },
+
     targetVolume() {
         const master = Math.max(0, Math.min(100, Number(Nutzerspeicher.getSetting('musicVolume', 24))));
         const player = Math.max(0, Math.min(100, Number(Nutzerspeicher.getSetting('playerVolume', 12))));
         return master * player / 10000;
     },
 
-    fadeAudio(audio, target, seconds) {
-        const gain = audio === this.audio && this.gainNode ? this.gainNode.gain : null;
-        const start = gain ? gain.value : audio.volume;
+    effectiveTargetVolume() {
+        const player = Math.max(0, Math.min(100, Number(Nutzerspeicher.getSetting('playerVolume', 12))));
+        const inactiveMaster = Math.max(0, Math.min(100, Number(Nutzerspeicher.getSetting('inactiveVolume', 42))));
+        const activeVolume = this.targetVolume();
+        const inactiveVolume = inactiveMaster * player / 10000;
+        return activeVolume + (inactiveVolume - activeVolume) * this.backgroundVolumeFactor;
+    },
+
+    readAudioVolume(audio) {
+        return audio === this.audio && this.gainNode ? this.gainNode.gain.value : audio.volume;
+    },
+
+    setAudioVolume(audio, value) {
+        const volume = Math.max(0, Math.min(1, Number(value) || 0));
+        if (audio === this.audio && this.gainNode) this.gainNode.gain.value = volume;
+        else audio.volume = volume;
+    },
+
+    setBackgroundDuck(hidden) {
+        const destination = hidden ? 1 : 0;
+        if (hidden) {
+            if (this.backgroundFadeFrame) cancelAnimationFrame(this.backgroundFadeFrame);
+            this.backgroundFadeFrame = 0;
+            this.backgroundFadeGeneration++;
+            const previousTarget = this.effectiveTargetVolume();
+            this.backgroundVolumeFactor = destination;
+            const nextTarget = this.effectiveTargetVolume();
+            const factor = previousTarget > 0 ? nextTarget / previousTarget : 1;
+            if (this.crossfadeActive) {
+                this.setAudioVolume(this.audio, this.readAudioVolume(this.audio) * factor);
+                this.fadingPlayers.forEach(player => this.setAudioVolume(player, this.readAudioVolume(player) * factor));
+            } else {
+                this.setAudioVolume(this.audio, nextTarget);
+                this.fadingPlayers.forEach(player => this.setAudioVolume(player, this.readAudioVolume(player) * factor));
+            }
+            if (this.crossfadeActive) {
+                this.crossfadeOutgoingStart *= factor;
+                this.crossfadeStartVolume = nextTarget;
+            }
+            return;
+        }
+        const start = this.backgroundVolumeFactor;
+        const generation = ++this.backgroundFadeGeneration;
         const started = performance.now();
-        const tick = now => {
-            if (audio.paused) return;
-            const progress = Math.min(1, (now - started) / (seconds * 1000));
-            if (gain) gain.value = start + (target - start) * progress;
-            else audio.volume = start + (target - start) * progress;
-            if (progress < 1) requestAnimationFrame(tick);
+        let previousTarget = this.effectiveTargetVolume();
+        if (this.backgroundFadeFrame) cancelAnimationFrame(this.backgroundFadeFrame);
+        const render = now => {
+            if (generation !== this.backgroundFadeGeneration) return;
+            const progress = Math.min(1, (now - started) / 350);
+            const smooth = progress * progress * (3 - 2 * progress);
+            this.backgroundVolumeFactor = start + (destination - start) * smooth;
+            const nextTarget = this.effectiveTargetVolume();
+            if (!this.crossfadeActive) {
+                if (!this.audio.volumeFadeActive) this.setAudioVolume(this.audio, nextTarget);
+                const factor = previousTarget > 0 ? nextTarget / previousTarget : 1;
+                this.fadingPlayers.forEach(player => this.setAudioVolume(player, this.readAudioVolume(player) * factor));
+            }
+            previousTarget = nextTarget;
+            if (progress < 1) this.backgroundFadeFrame = requestAnimationFrame(render);
+            else this.backgroundFadeFrame = 0;
         };
+        this.backgroundFadeFrame = requestAnimationFrame(render);
+    },
+
+    fadeAudio(audio, target, seconds) {
+        const resolveTarget = typeof target === 'function' ? target : () => target;
+        const start = this.readAudioVolume(audio);
+        const started = performance.now();
+        const token = (audio.volumeFadeToken || 0) + 1;
+        audio.volumeFadeToken = token;
+        audio.volumeFadeActive = true;
+        const tick = now => {
+            if (audio.volumeFadeToken !== token) return;
+            if (audio.paused) {
+                audio.volumeFadeActive = false;
+                return;
+            }
+            const progress = Math.min(1, (now - started) / (seconds * 1000));
+            const smooth = progress * progress * (3 - 2 * progress);
+            const destination = Math.max(0, Math.min(1, resolveTarget()));
+            this.setAudioVolume(audio, start + (destination - start) * smooth);
+            if (progress < 1) requestAnimationFrame(tick);
+            else audio.volumeFadeActive = false;
+        };
+        if (seconds <= 0) {
+            this.setAudioVolume(audio, resolveTarget());
+            audio.volumeFadeActive = false;
+            return;
+        }
         requestAnimationFrame(tick);
     },
 
-    fadePreviousAudio(seconds) {
+    fadePreviousAudio() {
         const previous = this.audio.cloneNode();
         const previousTime = this.audio.currentTime;
         previous.hidden = true;
-        previous.volume = this.audio.volume;
+        previous.volume = this.readAudioVolume(this.audio);
         document.body.appendChild(previous);
         this.fadingPlayers.add(previous);
-        const startFade = () => {
-            try { previous.currentTime = previousTime; } catch {}
-            previous.play().then(() => {
-                this.fadeAudio(previous, 0, seconds);
-                window.setTimeout(() => this.stopFadeOutPlayer(previous), seconds * 1000 + 80);
-            }).catch(() => this.stopFadeOutPlayer(previous));
+        return new Promise(resolve => {
+            let settled = false;
+            const timeout = window.setTimeout(() => {
+                this.stopFadeOutPlayer(previous);
+                finish(null);
+            }, 1500);
+            const finish = player => {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timeout);
+                if (!player) this.stopFadeOutPlayer(previous);
+                resolve(player);
+            };
+            const start = () => {
+                if (settled) return;
+                try { previous.currentTime = previousTime; } catch {}
+                previous.play().then(() => finish(previous)).catch(() => {
+                    finish(null);
+                });
+            };
+            previous.addEventListener('error', () => {
+                finish(null);
+            }, { once: true });
+            if (previous.readyState >= 1) start();
+            else previous.addEventListener('loadedmetadata', start, { once: true });
+            previous.load();
+        });
+    },
+
+    crossfadePlayers(previous, seconds) {
+        this.cancelCrossfade();
+        this.crossfadeActive = true;
+        const generation = this.crossfadeGeneration;
+        const started = performance.now();
+        this.crossfadeOutgoingStart = this.readAudioVolume(previous);
+        this.crossfadeStartVolume = Math.max(0.001, this.effectiveTargetVolume());
+        const render = now => {
+            if (generation !== this.crossfadeGeneration || this.audio.paused) {
+                this.crossfadeActive = false;
+                return;
+            }
+            if (previous.paused) {
+                this.crossfadeFrame = 0;
+                this.crossfadeActive = false;
+                this.setAudioVolume(this.audio, this.effectiveTargetVolume());
+                this.stopFadeOutPlayer(previous);
+                return;
+            }
+            const progress = Math.min(1, (now - started) / (seconds * 1000));
+            const angle = progress * Math.PI / 2;
+            this.setAudioVolume(previous, this.crossfadeOutgoingStart * (this.effectiveTargetVolume() / this.crossfadeStartVolume) * Math.cos(angle));
+            this.setAudioVolume(this.audio, this.effectiveTargetVolume() * Math.sin(angle));
+            if (progress < 1) this.crossfadeFrame = requestAnimationFrame(render);
+            else {
+                this.crossfadeFrame = 0;
+                this.crossfadeActive = false;
+                this.setAudioVolume(this.audio, this.effectiveTargetVolume());
+                this.stopFadeOutPlayer(previous);
+            }
         };
-        if (previous.readyState >= 1) startFade();
-        else previous.addEventListener('loadedmetadata', startFade, { once: true });
-        previous.load();
+        this.crossfadeFrame = requestAnimationFrame(render);
+    },
+
+    cancelCrossfade() {
+        this.crossfadeGeneration++;
+        if (this.crossfadeFrame) cancelAnimationFrame(this.crossfadeFrame);
+        this.crossfadeFrame = 0;
+        this.crossfadeActive = false;
     },
 
     stopFadeOutPlayer(player) {
@@ -1348,24 +1663,29 @@ const Mediaplayer = {
         star.addEventListener('animationend', () => star.remove(), { once: true });
     },
 
-    step(direction) {
+    step(direction, crossfadeSeconds = null) {
         if (!this.tracks.length) return;
         if (Nutzerspeicher.getSetting('mediaplayerShuffle', false) && direction > 0) {
             let index = this.currentIndex;
             if (this.tracks.length > 1) while (index === this.currentIndex) index = Math.floor(Math.random() * this.tracks.length);
-            this.select(index, true);
+            this.select(index, true, crossfadeSeconds);
             return;
         }
-        this.select(this.currentIndex + direction, true);
+        this.select(this.currentIndex + direction, true, crossfadeSeconds);
     },
 
     togglePlayback() {
         if (this.audio.paused) {
             if (this.currentIndex < 0 && this.tracks.length) this.select(0, true);
-            else this.audio.play().catch(() => {});
+            else {
+                this.updateVolume();
+                this.audio.play().catch(() => {});
+            }
         } else {
             this.audio.pause();
+            this.cancelCrossfade();
             this.stopFadeOutPlayers();
+            this.updateVolume();
         }
     },
 
@@ -1544,7 +1864,13 @@ const Mediaplayer = {
                 if (crossfadeSlider) crossfadeSlider.disabled = !enabled;
             };
             crossfadeToggle.addEventListener('click', () => {
-                Nutzerspeicher.setSetting('crossfadeEnabled', !Nutzerspeicher.getSetting('crossfadeEnabled', false));
+                const enabled = !Nutzerspeicher.getSetting('crossfadeEnabled', false);
+                Nutzerspeicher.setSetting('crossfadeEnabled', enabled);
+                if (!enabled) {
+                    this.cancelCrossfade();
+                    this.stopFadeOutPlayers();
+                    this.updateVolume();
+                }
                 renderCrossfade();
             });
             renderCrossfade();
@@ -1576,7 +1902,7 @@ const Mediaplayer = {
 
         const sliders = [
             ['Audio-slider-id', 'playerVolume', 'Audio-nummer', 12, () => this.updateVolume()],
-            ['crossfaded-id', 'crossfadeSeconds', 'crossfaded-nummer', 0, value => {}],
+            ['crossfaded-id', 'crossfadeSeconds', 'crossfaded-nummer', 8, value => {}],
             ['osu-betamap-hitsound-id', 'osuHitsoundVolume', 'osu-beatmap-hitsounds-nummer', 24, value => {}]
         ];
         sliders.forEach(([id, key, outputId, fallback, apply]) => {
@@ -1586,6 +1912,7 @@ const Mediaplayer = {
             slider.dataset.bound = 'true';
             const value = Math.max(Number(slider.min) || 0, Math.min(Number(slider.max) || 100, Number(Nutzerspeicher.getSetting(key, fallback))));
             slider.value = String(value);
+            if (key === 'crossfadeSeconds') Nutzerspeicher.setSetting(key, value);
             if (output) output.textContent = key === 'crossfadeSeconds' ? `${value} Sekunden` : `${value}%`;
             apply(value);
             slider.addEventListener('input', () => {
@@ -1654,6 +1981,7 @@ const Mediaplayer = {
         const config = entries.find(entry => entry.name.toLowerCase().endsWith('skin.ini'));
         const configText = config ? await config.blob.text() : '';
         const configuredName = configText.match(/^Name\s*:\s*(.+)$/mi)?.[1]?.trim();
+        const skinConfig = this._parseSkinConfig(configText);
         const hitSounds = {};
         entries.forEach(entry => {
             const basename = entry.name.toLowerCase().split('/').pop();
@@ -1664,6 +1992,7 @@ const Mediaplayer = {
         const skin = {
             id: crypto.randomUUID(),
             name: configuredName || file.name.replace(/\.(osk|zip)$/i, ''),
+            config: skinConfig,
             assets: {
                 hitcircle,
                 approachcircle: findImage('approachcircle'),
@@ -1695,7 +2024,16 @@ const Mediaplayer = {
 
     async removeOsuSkin(id) {
         const skin = this.skins.find(item => item.id === id);
-        if (!skin || !window.confirm(`osu!-Skin „${skin.name}“ entfernen?`)) return;
+        if (!skin) return;
+        const confirmed = window.Popup
+            ? await window.Popup.confirm(`osu!-Skin „${skin.name}“ entfernen?`, {
+                title: 'Skin entfernen',
+                type: 'warning',
+                confirmLabel: 'Entfernen',
+                danger: true
+            })
+            : window.confirm(`osu!-Skin „${skin.name}“ entfernen?`);
+        if (!confirmed) return;
         try {
             await this.deleteOsuSkin(id);
             this.skins = this.skins.filter(item => item.id !== id);
@@ -1765,15 +2103,11 @@ const Mediaplayer = {
     },
 
     updateVolume() {
-        const master = Math.max(0, Math.min(100, Number(Nutzerspeicher.getSetting('musicVolume', 24))));
-        const player = Math.max(0, Math.min(100, Number(Nutzerspeicher.getSetting('playerVolume', 12))));
-        const volume = master * player / 10000;
-        if (this.gainNode) {
-            this.audio.volume = 1;
-            this.gainNode.gain.value = volume;
-        }
-        else this.audio.volume = volume;
+        if (this.gainNode) this.audio.volume = 1;
+        if (this.crossfadeActive) return;
+        this.setAudioVolume(this.audio, this.effectiveTargetVolume());
     }
 };
 
+window.Mediaplayer = Mediaplayer;
 Mediaplayer.init();

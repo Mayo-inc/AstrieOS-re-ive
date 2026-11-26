@@ -52,9 +52,9 @@ const SettingsSliders = {
     defaults: {
         backgroundTracking: 18,
         backgroundBlur: 18,
-        musicVolume: 24,
-        inactiveVolume: 8,
-        effectVolume: 24
+        musicVolume: 60,
+        inactiveVolume: 42,
+        effectVolume: 28
     },
 
     init() {
@@ -72,7 +72,9 @@ const SettingsSliders = {
                     document.querySelectorAll('audio[data-music-player]').forEach(audio => audio.volume = value / 100);
                     if (typeof Mediaplayer !== 'undefined') Mediaplayer.updateVolume();
                 }],
-                ['Musik-involume-id', 'inactiveVolume', value => `${value}%`, () => {}],
+                ['Musik-involume-id', 'inactiveVolume', value => `${value}%`, () => {
+                    if (typeof Mediaplayer !== 'undefined') Mediaplayer.updateVolume();
+                }],
                 ['Musik-effekt-id', 'effectVolume', value => `${value}%`, value => {
                     if (typeof Sound !== 'undefined') Sound.setVolume(value / 100);
                 }]
@@ -91,21 +93,18 @@ const SettingsSliders = {
                     const value = Math.min(max, Math.max(min, Number(slider.value)));
                     slider.value = String(value);
                     if (output) output.textContent = format(value);
-                    apply(value);
                     if (save && window.Nutzerspeicher) {
                         const current = window.Nutzerspeicher.laden();
                         current[key] = value;
                         window.Nutzerspeicher.speichern(current);
                     }
+                    apply(value);
                 };
                 slider.value = String(initial);
                 let lastTick = 0;
                 let tickTimer = 0;
                 slider.addEventListener('input', () => {
-                    render(false);
-                    const current = window.Nutzerspeicher?.laden() || {};
-                    current[key] = Number(slider.value);
-                    window.Nutzerspeicher?.speichern(current);
+                    render(true);
                     if (typeof Sound !== 'undefined') {
                         window.clearTimeout(tickTimer);
                         tickTimer = window.setTimeout(() => {
@@ -219,7 +218,11 @@ const EinstellungenHintergrund = {
      */
     init() {
         this._attachMaterialYouControls();
-        document.addEventListener('settings-template-ready', () => this._attachMaterialYouControls(), { once: true });
+        this._attachDangerZoneControls();
+        document.addEventListener('settings-template-ready', () => {
+            this._attachMaterialYouControls();
+            this._attachDangerZoneControls();
+        }, { once: true });
         if (this.initialized) {
             this._renderWallpaperListe();
             return;
@@ -231,6 +234,77 @@ const EinstellungenHintergrund = {
         this._renderWallpaperListe(); // Liste beim Start anzeigen
 
         console.log('[EinstellungenHintergrund] Initialisiert');
+    },
+
+    _attachDangerZoneControls() {
+        const actions = [
+            {
+                id: 'delete-all-backgrounds',
+                title: 'Alle Hintergründe löschen',
+                message: 'Möchtest du alle gespeicherten Hintergründe und Wallpaper-Dateien löschen und den Desktop-Hintergrund zurücksetzen?',
+                confirmLabel: 'Alle Hintergründe löschen',
+                run: async () => {
+                    const count = await Nutzerspeicher.leereWallpaperBibliothek();
+                    await this._renderWallpaperListe();
+                    return `${count} ${count === 1 ? 'Hintergrund wurde' : 'Hintergründe wurden'} gelöscht.`;
+                }
+            },
+            {
+                id: 'delete-all-playlist',
+                title: 'Musik-Playlist löschen',
+                message: 'Möchtest du alle Titel aus der Musik- und osu!-Mediathek löschen?',
+                confirmLabel: 'Playlist löschen',
+                run: async () => {
+                    const count = window.Mediaplayer?.tracks?.length || 0;
+                    if (!window.Mediaplayer) throw new Error('Der Mediaplayer ist gerade nicht verfügbar.');
+                    await window.Mediaplayer.clearLibrary();
+                    return `${count} ${count === 1 ? 'Titel wurde' : 'Titel wurden'} gelöscht.`;
+                }
+            },
+            {
+                id: 'delete-all-modding-library',
+                title: 'Modding-Bibliothek leeren',
+                message: 'Möchtest du alle aktuell registrierten Modding-Erweiterungen aus der Bibliothek entfernen?',
+                confirmLabel: 'Bibliothek leeren',
+                run: async () => {
+                    if (!window.DebugMenu) throw new Error('Die Modding-Bibliothek ist gerade nicht verfügbar.');
+                    const count = window.DebugMenu.clearModules();
+                    return `${count} ${count === 1 ? 'Mod wurde' : 'Mods wurden'} aus der Bibliothek entfernt.`;
+                }
+            }
+        ];
+
+        actions.forEach(action => {
+            const button = document.getElementById(action.id);
+            if (!button || button.dataset.bound) return;
+            button.dataset.bound = 'true';
+            button.addEventListener('click', async () => {
+                const confirmed = window.Popup
+                    ? await window.Popup.confirm(action.message, {
+                        title: action.title,
+                        type: 'warning',
+                        confirmLabel: action.confirmLabel,
+                        danger: true
+                    })
+                    : window.confirm(action.message);
+                if (!confirmed) return;
+
+                button.disabled = true;
+                try {
+                    const result = await action.run();
+                    window.Popup?.toast(result, { title: action.title, type: 'success' });
+                } catch (error) {
+                    console.error(`[Einstellungen] ${action.title} fehlgeschlagen:`, error);
+                    if (window.Popup) await window.Popup.alert(error.message || 'Die Sammlung konnte nicht geleert werden.', {
+                        title: 'Löschen fehlgeschlagen',
+                        type: 'error'
+                    });
+                    else window.alert(error.message || 'Die Sammlung konnte nicht geleert werden.');
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
     },
 
     _attachMaterialYouControls() {
@@ -520,7 +594,8 @@ const EinstellungenHintergrund = {
         if (await Popup.confirm('Möchtest du dieses Wallpaper wirklich löschen?', {
             title: 'Wallpaper löschen',
             type: 'warning',
-            confirmLabel: 'Löschen'
+            confirmLabel: 'Löschen',
+            danger: true
         })) {
             if (typeof Nutzerspeicher !== 'undefined') {
                 // Speichere das Wallpaper-Objekt BEVOR es gelöscht wird

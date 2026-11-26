@@ -52,26 +52,59 @@ const Nutzerspeicher = {
         if (!button || button.dataset.bound) return;
         button.dataset.bound = 'true';
         button.addEventListener('click', async () => {
-            if (Math.random() < 0.08 && window.KernelDied) {
-                window.KernelDied.startCrashSequence();
-                return;
-            }
-            const confirmed = window.confirm('Wirklich ALLE AstrieOS-Daten und gespeicherten Hintergründe löschen?');
+            if (button.disabled) return;
+            const message = 'Wirklich ALLE AstrieOS-Daten und gespeicherten Hintergründe löschen?';
+            const confirmed = window.Popup
+                ? await window.Popup.confirm(message, {
+                    title: 'Alle Daten löschen',
+                    type: 'error',
+                    confirmLabel: 'Alles löschen',
+                    danger: true
+                })
+                : window.confirm(message);
             if (!confirmed) return;
+
+            button.disabled = true;
             try {
+                await this._closeDatabasesForDeleteAll();
+                await this._deleteDatabase(this.WALLPAPER_DB_NAME);
+                await this._deleteDatabase('astrieos_mediaplayer');
                 localStorage.clear();
-                await new Promise(resolve => {
-                    const request = indexedDB.deleteDatabase(this.WALLPAPER_DB_NAME);
-                    request.onsuccess = request.onerror = request.onblocked = () => resolve();
-                });
-                await new Promise(resolve => {
-                    const request = indexedDB.deleteDatabase('astrieos_mediaplayer');
-                    request.onsuccess = request.onerror = request.onblocked = () => resolve();
-                });
+                sessionStorage.clear();
+                window.location.assign('/');
             } catch (error) {
                 console.error('[Nutzerspeicher] Daten konnten nicht vollständig gelöscht werden:', error);
+                button.disabled = false;
+                const message = error.name === 'BlockedError'
+                    ? 'Ein anderer AstrieOS-Tab verwendet noch lokale Daten. Schließe die anderen AstrieOS-Tabs und versuche es erneut.'
+                    : `Die Daten konnten nicht vollständig gelöscht werden. ${error.message || ''}`;
+                if (window.Popup) await window.Popup.alert(message, {
+                    title: 'Löschen fehlgeschlagen',
+                    type: 'error'
+                });
+                else window.alert(message);
             }
-            window.location.href = '/';
+        });
+    },
+
+    async _closeDatabasesForDeleteAll() {
+        if (this._wallpaperDatabasePromise) {
+            try { (await this._wallpaperDatabasePromise).close(); } catch {}
+            this._wallpaperDatabasePromise = null;
+        }
+        await window.Mediaplayer?.closeDB?.();
+    },
+
+    _deleteDatabase(name) {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.deleteDatabase(name);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error || new Error(`Datenbank „${name}“ konnte nicht gelöscht werden.`));
+            request.onblocked = () => {
+                const error = new Error(`Datenbank „${name}“ wird von einem anderen Tab verwendet.`);
+                error.name = 'BlockedError';
+                reject(error);
+            };
         });
     },
 
@@ -546,6 +579,24 @@ const Nutzerspeicher = {
             console.error('[Nutzerspeicher] Fehler beim Laden der Wallpaper-Liste:', error);
             return [];
         }
+    },
+
+    async leereWallpaperBibliothek() {
+        if (this._wallpaperStorageReady) await this._wallpaperStorageReady;
+        const wallpapers = this.ladeWallpaperListe();
+        const database = await this._openWallpaperDatabase();
+        await new Promise((resolve, reject) => {
+            const transaction = database.transaction(this.WALLPAPER_DB_STORE, 'readwrite');
+            transaction.objectStore(this.WALLPAPER_DB_STORE).clear();
+            transaction.oncomplete = resolve;
+            transaction.onerror = () => reject(transaction.error || new Error('Wallpaper-Dateien konnten nicht gelöscht werden.'));
+            transaction.onabort = () => reject(transaction.error || new Error('Löschen der Wallpaper-Dateien wurde abgebrochen.'));
+        });
+        if (!this.speichereWallpaperListe([])) throw new Error('Wallpaper-Liste konnte nicht geleert werden.');
+        for (const objectUrl of this._wallpaperObjectUrls.values()) URL.revokeObjectURL(objectUrl);
+        this._wallpaperObjectUrls.clear();
+        this.hintergrundLöschen();
+        return wallpapers.length;
     },
 
     /**

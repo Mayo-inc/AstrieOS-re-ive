@@ -393,7 +393,8 @@ const Nutzerkonto = {
         const bestätigt = await Popup.confirm(`Möchtest du das Konto „${aktivesKonto.username}“ wirklich löschen?\n\nDie Kontodaten gehen dabei verloren.`, {
             title: 'Konto löschen',
             type: 'warning',
-            confirmLabel: 'Konto löschen'
+            confirmLabel: 'Konto löschen',
+            danger: true
         });
         
         if (bestätigt) {

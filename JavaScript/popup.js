@@ -81,7 +81,6 @@ const Popup = {
         const marks = { info: 'i', success: '✓', warning: '!', error: '×' };
         this.dialog.dataset.type = type;
         this.root.querySelector('[data-popup-mark]').textContent = marks[type];
-        this.root.querySelector('[data-popup-eyebrow]').textContent = options.eyebrow || 'AstrieOS';
         this.root.querySelector('[data-popup-title]').textContent = options.title || labels[type];
         this.root.querySelector('[data-popup-message]').textContent = String(options.message ?? '');
         this.backdrop.hidden = false;
@@ -100,7 +99,11 @@ const Popup = {
             if (options.mode !== 'alert') {
                 this.actions.appendChild(this._makeAction(options.cancelLabel || 'Abbrechen', false));
             }
-            this.actions.appendChild(this._makeAction(options.confirmLabel || (isPrompt ? 'Übernehmen' : 'OK'), true));
+            this.actions.appendChild(this._makeAction(
+                options.confirmLabel || (isPrompt ? 'Übernehmen' : 'OK'),
+                true,
+                Boolean(options.danger)
+            ));
             if (isPrompt) {
                 this.promptKeyHandler = event => {
                     if (event.key === 'Enter') {
@@ -117,10 +120,10 @@ const Popup = {
         });
     },
 
-    _makeAction(label, primary) {
+    _makeAction(label, primary, danger = false) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = `popup-action${primary ? ' popup-action-primary' : ''}`;
+        button.className = `popup-action${primary ? ' popup-action-primary' : ''}${danger ? ' popup-action-danger' : ''}`;
         button.textContent = label;
         button.addEventListener('click', () => {
             if (primary) {

@@ -154,6 +154,13 @@ const DebugMenu = {
         if (this.root) this._renderModules(this.root);
     },
 
+    clearModules() {
+        const count = this.modules.length;
+        this.modules = [];
+        if (this.root) this._renderModules(this.root);
+        return count;
+    },
+
     _renderModules(root) {
         const list = root.querySelector('[data-debug-modules]');
         if (!list) return;
@@ -410,4 +417,5 @@ const DebugMenu = {
     }
 };
 
+window.DebugMenu = DebugMenu;
 DebugMenu.init();

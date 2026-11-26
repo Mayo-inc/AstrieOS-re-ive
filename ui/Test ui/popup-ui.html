@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="popup-ui.css">
+    <link rel="stylesheet" href="/Res/Font/font.css">
+    <title>Document</title>
+</head>
+<body>
+    <div class="popup-system">
+        <div class="popup-backdrop" data-popup-backdrop>
+            <section class="popup-dialog" role="dialog" aria-modal="true" aria-labelledby="popup-title" aria-describedby="popup-message" tabindex="-1">
+                <div class="popup-dialog-topline">
+                    <span class="popup-mark" data-popup-mark aria-hidden="true">i</span>
+                    <button class="popup-close" type="button" data-popup-cancel aria-label="Popup schließen">×</button>
+                </div>
+                <h2 class="popup-title" id="popup-title" data-popup-title>Hinweis</h2>
+                <p class="popup-message" id="popup-message" data-popup-message></p>
+                <label class="popup-input-label" data-popup-input-label>
+                    <span data-popup-input-caption></span>
+                    <input class="popup-input" data-popup-input type="text" autocomplete="off">
+                </label>
+                <div class="popup-actions" data-popup-actions>
+                    <button class="popup-action-primary">hey hover mir!</button>
+                    <button class="popup-action">hey hover mir!</button>
+                </div>
+            </section>
+        </div>
+        <div class="popup-toasts" data-popup-toasts aria-live="polite" aria-relevant="additions"></div>
+    </div>
+</body>
+</html>
