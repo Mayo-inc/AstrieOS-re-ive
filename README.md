@@ -13,4 +13,4 @@ AstrieOS-re-ive ist ein "verbessert" joke Web-basiert mit Normale JavaScript abe
 <br>
 klicke sie [hier!](https://astrieos-landing.netlify.app/) zu mehr Erfahrung!
 <br>
-Mayi-oi 2026
+<p align=center>Mayo-inc 2026</p>
