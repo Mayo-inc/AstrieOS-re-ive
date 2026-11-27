@@ -1,61 +1,105 @@
-.Datein-placeholder {
+.Datein-window-container {
+    container: datein / inline-size;
     width: 100%;
     height: 100%;
-    min-height: 320px;
+    background-color: var(--material-you-surface);
+    min-height: 0;
+}
+
+.Datein-placeholder {
     box-sizing: border-box;
-    padding: 18px;
-    color: #fff;
-    background: #111116;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding: 16px;
+    color: var(--material-you-dark-text, #fff);
+    background: transparent;
     font-family: Google-sans, Arial, sans-serif;
 }
 
-.Datein-content { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 280px; gap: 10px; }
+.Datein-content { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; gap: 10px; }
 .Datein-addresse, .Datein-tools, .Datein-footer { display: flex; align-items: center; gap: 8px; }
-.Datein-addresse { min-height: 48px; padding: 6px 10px; border-radius: 12px; background: #1d1d25; }
-.Datein-breadcrumbs { display: flex; align-items: center; min-width: 0; gap: 8px; overflow: auto; }
-.Datein-account { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; color: #d7d7e0; }
-.Datein-account img, .Datein-btn img { width: 24px; height: 24px; object-fit: contain; }
-.Datein-btn, .Datein-crumb, .Datein-action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 10px; padding: 9px 12px; color: #fff; background: #25252f; font: inherit; cursor: pointer; transition: background .15s ease, box-shadow .15s ease; }
-.Datein-btn:hover, .Datein-crumb:hover, .Datein-action:hover { background: #343441; }
+.Datein-addresse { min-height: 48px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--material-you-outline, #d8b9ed) 16%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--material-you-surface, #19171f) 86%, var(--material-you-primary-container, #694785)); }
+.Datein-breadcrumbs { display: flex; align-items: center; min-width: 0; gap: 6px; overflow: auto; }
+.Datein-account { display: flex; align-items: center; gap: 7px; margin-left: auto; flex: 0 0 auto; color: color-mix(in srgb, var(--material-you-dark-text, #fff) 78%, transparent); }
+.Datein-account img, .Datein-btn img { width: 22px; height: 22px; flex: 0 0 auto; object-fit: contain; }
+.Datein-btn, .Datein-crumb, .Datein-action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid transparent; border-radius: 12px; padding: 9px 12px; color: var(--material-you-dark-text, #fff); background: color-mix(in srgb, var(--material-you-surface-variant, #302b38) 84%, transparent); font: inherit; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+.Datein-btn:hover, .Datein-crumb:hover, .Datein-action:hover { border-color: color-mix(in srgb, var(--material-you-outline, #d8b9ed) 24%, transparent); background: color-mix(in srgb, var(--material-you-primary, #bd82eb) 24%, var(--material-you-surface-variant, #302b38)); }
 .Datein-btn[hidden] { display: none; }
-.Datein-btn:focus-visible, .Datein-crumb:focus-visible, .Datein-action:focus-visible, .Datein-sort:focus-visible, .D-suche:focus-visible { outline: 2px solid #bd82eb; outline-offset: 2px; }
-.Datein-root { width: 40px; height: 40px; padding: 7px; flex: 0 0 auto; }
-.Datein-crumb { padding: 6px 8px; white-space: nowrap; background: transparent; }
-.Datein-crumb:disabled { color: #bbb; cursor: default; }
-.Datein-separator { color: #858594; }
+.Datein-btn:focus-visible, .Datein-crumb:focus-visible, .Datein-action:focus-visible, .Datein-sort:focus-visible, .D-suche:focus-visible { outline: 2px solid var(--material-you-primary, #bd82eb); outline-offset: 2px; }
+.Datein-root { width: 42px; height: 42px; flex: 0 0 auto; padding: 7px; }
+.Datein-crumb { min-height: 38px; padding: 6px 8px; white-space: nowrap; background: transparent; }
+.Datein-crumb:disabled { color: color-mix(in srgb, var(--material-you-dark-text, #fff) 56%, transparent); cursor: default; }
+.Datein-separator { color: color-mix(in srgb, var(--material-you-dark-text, #fff) 48%, transparent); }
 .Datein-name { font-weight: 600; }
 .Datein-tools { flex-wrap: wrap; }
 .Datein-suche { flex: 1 1 180px; }
-.D-suche, .Datein-sort { box-sizing: border-box; height: 42px; border: 1px solid #343441; border-radius: 10px; padding: 0 12px; background: #1d1d25; color: #fff; font: inherit; }
+.D-suche, .Datein-sort { box-sizing: border-box; height: 44px; border: 1px solid color-mix(in srgb, var(--material-you-outline, #d8b9ed) 20%, transparent); border-radius: 12px; padding: 0 12px; background: color-mix(in srgb, var(--material-you-surface, #19171f) 88%, transparent); color: var(--material-you-dark-text, #fff); font: inherit; }
 .D-suche { width: 100%; }
-.D-suche::placeholder { color: #9999aa; }
+.D-suche::placeholder { color: color-mix(in srgb, var(--material-you-dark-text, #fff) 54%, transparent); }
 .Datein-sort { min-width: 130px; }
-.Datein-status { min-height: 0; color: #b9e6c4; font-size: .9rem; }
+.Datein-status { min-height: 0; color: var(--material-you-secondary, #e5a9cf); font-size: .9rem; }
 .Datein-status:empty { display: none; }
 .Datein-status.is-error { color: #ff9d9d; }
-.Datein-list { flex: 1 1 auto; min-height: 100px; overflow: auto; border: 1px solid #343441; border-radius: 12px; background: #17171e; }
-.Datein-row { min-height: 58px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: none; background-color: transparent; font-family: inherit; }
+.Datein-list { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid color-mix(in srgb, var(--material-you-outline, #d8b9ed) 18%, transparent); border-radius: 16px; background: color-mix(in srgb, var(--material-you-surface, #19171f) 92%, transparent); }
+.Datein-row { display: flex; min-height: 60px; align-items: center; gap: 6px; padding: 6px 9px; border: none; background: transparent; font-family: inherit; }
 .Datein-row:last-child { border-bottom: 0; }
-.Datein-row:hover { background: #202029; }
-.Datein-open { display: flex; align-items: center; gap: 12px; flex: 1 1 auto; min-width: 0; padding: 4px; border: 0; color: inherit; background: transparent; text-align: left; font: inherit; cursor: pointer; }
-.Datein-item-icon { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; flex: 0 0 auto; border-radius: 9px; background: #292936; font-size: 20px; }
+.Datein-row:hover { background: color-mix(in srgb, var(--material-you-primary, #bd82eb) 12%, transparent); }
+.Datein-open { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 10px; padding: 4px; border: 0; color: inherit; background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.Datein-item-icon { display: inline-flex; width: 38px; height: 38px; align-items: center; justify-content: center; flex: 0 0 auto; border-radius: 12px; background: color-mix(in srgb, var(--material-you-surface-variant, #302b38) 84%, transparent); font-size: 20px; }
 .Datein-item-icon img { width: 25px; height: 25px; object-fit: contain; }
-.Datein-item-icon.is-folder { background: #39314a; }
-.Datein-item-details { display: flex; flex-direction: column; min-width: 0; gap: 3px; }
+.Datein-item-icon.is-folder { background: color-mix(in srgb, var(--material-you-primary-container, #694785) 56%, var(--material-you-surface-variant, #302b38)); }
+.Datein-item-details { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .Datein-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.Datein-item-meta { color: #a2a2b0; font-size: .8rem; }
-.Datein-action { width: 34px; height: 34px; flex: 0 0 auto; padding: 0; font-size: 19px; }
+.Datein-item-meta { overflow: hidden; color: color-mix(in srgb, var(--material-you-dark-text, #fff) 58%, transparent); font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.Datein-action { width: 40px; height: 40px; flex: 0 0 auto; padding: 0; font-size: 19px; }
 .Datein-action.is-danger:hover { color: #ffb1b1; background: #4a252a; }
-.Datein-up { color: #ffffff; }
-.Datein-empty { padding: 42px 18px; color: #aaa; text-align: center; }
-.Datein-footer { justify-content: space-between; min-height: 42px; color: #aaa; font-size: .85rem; }
-.Datein-trash.is-active { background: #4a252a; }
+.Datein-up { color: var(--material-you-dark-text, #fff); }
+.Datein-empty { padding: 42px 18px; color: color-mix(in srgb, var(--material-you-dark-text, #fff) 62%, transparent); text-align: center; }
+.Datein-footer { justify-content: space-between; min-height: 44px; color: color-mix(in srgb, var(--material-you-dark-text, #fff) 62%, transparent); font-size: .85rem; }
+.Datein-trash.is-active { border-color: color-mix(in srgb, #ff8585 28%, transparent); background: color-mix(in srgb, #7d3037 48%, var(--material-you-surface-variant, #302b38)); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
-@media (max-width: 680px) {
-    .Datein-placeholder { padding: 10px; }
-    .Datein-account { font-size: .85rem; }
+@container datein (max-width: 760px) {
+    .Datein-placeholder { padding: 12px; }
+    .Datein-content { gap: 8px; }
+    .Datein-addresse { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 6px; padding: 6px 8px; }
+    .Datein-breadcrumbs { grid-column: 2; grid-row: 1; }
+    .Datein-account { grid-column: 2; grid-row: 2; justify-self: start; margin: 0; font-size: .82rem; }
     .Datein-account img { display: none; }
-    .Datein-btn { padding: 8px; font-size: .9rem; }
-    .Datein-tools .Datein-btn span { display: none; }
+    .Datein-root { grid-column: 1; grid-row: 1 / span 2; }
+    .Datein-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; }
+    .Datein-suche { grid-column: 1 / -1; }
+    .Datein-btn { min-height: 44px; }
+    .Datein-row { min-height: 62px; }
+    .Datein-action { width: 42px; height: 42px; }
+}
+
+@container datein (max-width: 520px) {
+    .Datein-placeholder { padding: 9px; }
+    .Datein-addresse { grid-template-columns: 42px minmax(0, 1fr); }
+    .Datein-account { grid-column: 2; }
+    .Datein-tools { grid-template-columns: minmax(0, 1fr) 44px 44px; }
+    .Datein-sort { grid-column: 1 / -1; width: 100%; min-width: 0; }
+    .Datein-tools .Datein-btn { width: 44px; min-width: 44px; height: 44px; padding: 0; }
+    .Datein-tools .Datein-btn span, .Datein-trash span { display: none; }
+    .Datein-tools .Datein-btn img, .Datein-trash img { width: 22px; height: 22px; }
+    .Datein-list { border-radius: 14px; }
+    .Datein-row { gap: 3px; padding-inline: 6px; }
+    .Datein-open { gap: 7px; }
+    .Datein-item-icon { width: 34px; height: 34px; border-radius: 10px; }
+    .Datein-item-icon img { width: 23px; height: 23px; }
+    .Datein-item-meta { font-size: .72rem; }
+    .Datein-action { width: 38px; height: 40px; }
+    .Datein-footer { min-height: 44px; }
+    .Datein-trash { width: 44px; height: 44px; padding: 0; }
+}
+
+@container datein (max-width: 380px) {
+    .Datein-breadcrumbs { gap: 3px; }
+    .Datein-crumb { min-height: 36px; padding-inline: 5px; font-size: .83rem; }
+    .Datein-row { min-height: 58px; }
+    .Datein-action { width: 36px; height: 38px; font-size: 17px; }
+    .Datein-item-name { font-size: .9rem; }
 }

@@ -1,78 +1,68 @@
 <template id="Erfolgen-ui">
-    <div class="Erfolgen-placeholder" id="something-placeholder">
-        <div class="Erfolgen-content">
-            <div class="Erfolgen-content-display">
-                <div class="Haupterfolgen-display">
-                    <p class="Erfolgen-p-header">Ihre tracking!</p>
-                    <div class="Prozent-bar"><span class="Prozent-bold" id="Erfolgen-tracken">0%</span></div>
-                    <p class="Prozent-tipps">Mehr als <span id="Erfolgen-nummer">0</span> vom 10 zum erreichbar du schaffst das!</p>
-                    <br>
-                    <p class="Erfolgen-p-header">Dein Info!</p>
-                    <div class="info-display-top">
-                        <p class="Info-p-header">Läuft-zeit</p>
-                        <p><span class="Info-nummer-display" id="user-runtime">0:00:00:00</span></p>
-                    </div>
-                    <div class="info-display-middel">
-                        <p class="Info-p-header">Längeren session</p>
-                        <p><span class="Info-nummer-display" id="user-session">0:00:00</span></p>
-                    </div>
-                    <div class="info-display-middel">
-                        <p class="Info-p-header">Klicken</p>
-                        <p><span class="Info-nummer-display" id="user-clicks">0</span> klicken</p>
-                    </div>
-                    <div class="info-display-bottom">
-                        <p class="Info-p-header">Nutzer afk-chancen</p>
-                        <p><span class="Info-nummer-display" id="user-afk">0</span>%</p>
-                    </div>
+    <div class="Achievement-window-container">
+    <main class="Erfolgen-placeholder" aria-label="Erfolge und Nutzungsfortschritt">
+        <div class="Achievement-dashboard">
+            <header class="Achievement-profile">
+                <div class="Achievement-banner">
+                    <img data-profile-banner src="/Res/Bild/Hintergrund/Default-Banner.png" alt="" aria-hidden="true">
                 </div>
-                <div class="Folgen-display">
-                    <div class="Folgen-display-liste">
-                        <p class="Folgen-p-header">Placeholder lol</p>
-                        <div class="Folgen-display-grid">
-                            <div class="Folgen-liste-box" data-achievement="first_visit">
-                                <p class="Folgen-liste-header">Erste fehler</p>
-                                <p>Besuche AstrieOS zum ersten Mal</p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="return_visit">
-                                <p class="Folgen-liste-header">Du bist zurück</p>
-                                <p>zu spät du bist hier... für immer!</p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="afk">
-                                <p class="Folgen-liste-header">Away from keyboard</p>
-                                <p>Hey! woher gist du?</p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="clicker">
-                                <p class="Folgen-liste-header">Klicker master</p>
-                                <p>wow ein cookie clicker spieler!</p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="first_day">
-                                <p class="Folgen-liste-header">Erste tag verschwinden</p>
-                                <p>Magst wirklich diese joke destro?????</p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="mod_collector">
-                                <p class="Folgen-liste-header">Ich brauche... mehr mods....</p>
-                                <p>Wie viel mods hast du herunterladen????</p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="october">
-                                <p class="Folgen-liste-header">Sehr spooky.... BOO!</p>
-                                <p>Heute ist Oktober, wie könnten bedeute sein... </p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="error">
-                                <p class="Folgen-liste-header">oops...</p>
-                                <p>etwas sind wirklich schiefgegangen.......</p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="controller_gerate">
-                                <p class="Folgen-liste-header">Extra geräten</p>
-                                <p>wow du bist sehr cool mit dein inputs!</p>
-                            </div>
-                            <div class="Folgen-liste-box" data-achievement="music_jammer">
-                                <p class="Folgen-liste-header">Musik fans</p>
-                                <p>-. . ...- . .-. / --. --- -. -. .- / --. .. ...- . / -.-- --- ..- / ..- .--.</p>
-                            </div>
+                <div class="Achievement-profile-row">
+                    <img class="Achievement-avatar" data-profile-avatar src="/Res/Bild/Logo/AddText_07-03-07.27.32.png" alt="Profilbild von Gast!">
+                    <div class="Achievement-profile-identity">
+                        <h1 data-profile-name>Gast!</h1>
+                        <p>Deine Fortschritte auf AstrieOS</p>
+                    </div>
+                    <section class="Achievement-summary" aria-label="Gesamtfortschritt">
+                        <div class="Achievement-summary-top">
+                            <span>Gesamtfortschritt</span>
+                            <strong id="Erfolgen-tracken">0%</strong>
                         </div>
+                        <div class="Achievement-progress-track Achievement-overall-progress" role="progressbar" aria-label="Freigeschaltete Erfolge" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <span data-overall-progress></span>
+                        </div>
+                        <p><strong id="Erfolgen-nummer">0</strong> von <span id="Erfolgen-gesamt">0</span> Erfolgen freigeschaltet</p>
+                    </section>
+                </div>
+            </header>
+
+            <section class="Achievement-stats" aria-label="Deine Nutzungsstatistik">
+                <article class="Achievement-stat">
+                    <p>Aktive Zeit</p>
+                    <strong id="user-runtime">0:00:00</strong>
+                </article>
+                <article class="Achievement-stat">
+                    <p>Längste Sitzung</p>
+                    <strong id="user-session">0:00:00</strong>
+                </article>
+                <article class="Achievement-stat">
+                    <p>Besuche</p>
+                    <strong id="user-visits">0</strong>
+                </article>
+                <article class="Achievement-stat">
+                    <p>Klicks</p>
+                    <strong id="user-clicks">0</strong>
+                </article>
+                <article class="Achievement-stat">
+                    <p>Inaktivzeit</p>
+                    <strong id="user-afk">0%</strong>
+                </article>
+            </section>
+
+            <section class="Achievement-collection" aria-labelledby="Achievement-list-title">
+                <div class="Achievement-collection-header">
+                    <div>
+                        <h2 id="Achievement-list-title">Erfolgssammlung</h2>
+                        <p>Fortschritt wird lokal auf diesem Gerät gespeichert.</p>
+                    </div>
+                    <div class="Achievement-filters" role="group" aria-label="Erfolge filtern">
+                        <button type="button" data-achievement-filter="all" aria-pressed="true">Alle</button>
+                        <button type="button" data-achievement-filter="unlocked" aria-pressed="false">Erreicht</button>
+                        <button type="button" data-achievement-filter="locked" aria-pressed="false">Offen</button>
                     </div>
                 </div>
-            </div>
+                <div class="Achievement-grid" data-achievement-grid></div>
+            </section>
         </div>
+    </main>
     </div>
 </template>

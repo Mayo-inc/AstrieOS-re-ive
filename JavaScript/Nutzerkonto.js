@@ -8,6 +8,8 @@ const Nutzerkonto = {
     userCenterElement: null,
     userCustomElement: null,
     kontoDashboard: null,
+    cropDialog: null,
+    maxProfileImageBytes: 20 * 1024 * 1024,
 
     /**
      * Initialisiert das Nutzerkonto-System
@@ -266,57 +268,270 @@ const Nutzerkonto = {
      * Lädt eine Profilbild-Datei hoch
      */
     uploadProfilbild() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                // Sofort im UI anzeigen
-                const pfpImg = this.userCenterElement.querySelector('.Custom-pfp');
-                const topbarPfp = document.getElementById('userpfp');
-                
-                const tempUrl = URL.createObjectURL(file);
-                
-                if (pfpImg) pfpImg.src = tempUrl;
-                if (topbarPfp) topbarPfp.src = tempUrl;
-                
-                // Aktualisiere Dashboard PFP für aktives Konto
-                this.aktualisiereKontoDashboard();
-                
-                // Speichere die Datei
-                if (typeof Nutzerspeicher !== 'undefined') {
-                    Nutzerspeicher.speichereDateiAlsProfilbild(file);
-                }
-            }
-        };
-        input.click();
+        this.waehleBildDatei('profilbild');
     },
 
     /**
      * Lädt eine Banner-Datei hoch
      */
     uploadBanner() {
+        this.waehleBildDatei('banner');
+    },
+
+    waehleBildDatei(typ) {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                // Sofort im UI anzeigen
-                const bannerImg = this.userCenterElement.querySelector('.banner-bg');
-                
-                const tempUrl = URL.createObjectURL(file);
-                
-                if (bannerImg) bannerImg.src = tempUrl;
-                
-                // Speichere die Datei
-                if (typeof Nutzerspeicher !== 'undefined') {
-                    Nutzerspeicher.speichereDateiAlsBanner(file);
-                }
+        input.onchange = async () => {
+            const file = input.files?.[0];
+            input.remove();
+            if (file) await this.bearbeiteProfilbild(file, typ);
+        };
+        input.oncancel = () => input.remove();
+        input.click();
+    },
+
+    async bearbeiteProfilbild(file, typ) {
+        const alert = (message, title = 'Bild konnte nicht geladen werden') => window.Popup?.alert
+            ? window.Popup.alert(message, { title, type: 'warning' })
+            : window.alert(message);
+
+        if (file.size > this.maxProfileImageBytes) {
+            await alert('Die Bilddatei darf höchstens 20 MB groß sein.');
+            return false;
+        }
+        if (file.type && !file.type.startsWith('image/')) {
+            await alert('Bitte wähle eine Bilddatei aus.');
+            return false;
+        }
+        if (!window.Nutzerspeicher?.getAktiveKontoId?.()) {
+            await alert('Es ist kein aktives Nutzerkonto verfügbar.');
+            return false;
+        }
+
+        if (this.cropDialog) this.cropDialog.close(false);
+        const imageUrl = URL.createObjectURL(file);
+        const image = new Image();
+        try {
+            await new Promise((resolve, reject) => {
+                image.onload = resolve;
+                image.onerror = () => reject(new Error('Dieses Bildformat kann nicht geöffnet werden.'));
+                image.src = imageUrl;
+            });
+        } catch (error) {
+            URL.revokeObjectURL(imageUrl);
+            await alert(error.message);
+            return false;
+        }
+        if (!image.naturalWidth || !image.naturalHeight) {
+            URL.revokeObjectURL(imageUrl);
+            await alert('Die Bilddatei enthält keine lesbaren Bilddaten.');
+            return false;
+        }
+
+        const isBanner = typ === 'banner';
+        const width = isBanner ? 1600 : 512;
+        const height = isBanner ? 560 : 512;
+        const accountId = window.Nutzerspeicher.getAktiveKontoId();
+        const title = isBanner ? 'Banner zuschneiden' : 'Profilbild zuschneiden';
+        const backdrop = document.createElement('div');
+        backdrop.className = 'Nutzerbild-crop-backdrop';
+        const dialog = document.createElement('section');
+        dialog.className = 'Nutzerbild-crop-dialog';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'Nutzerbild-crop-title');
+        dialog.tabIndex = -1;
+
+        const header = document.createElement('header');
+        header.className = 'Nutzerbild-crop-header';
+        const heading = document.createElement('h2');
+        heading.id = 'Nutzerbild-crop-title';
+        heading.textContent = title;
+        header.append(heading);
+
+        const stage = document.createElement('div');
+        stage.className = 'Nutzerbild-crop-stage';
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.tabIndex = 0;
+        canvas.setAttribute('role', 'img');
+        canvas.setAttribute('aria-label', 'Verschiebe das Bild zum Zuschneiden.');
+        stage.append(canvas);
+
+        const hint = document.createElement('p');
+        hint.className = 'Nutzerbild-crop-hint';
+        hint.id = 'Nutzerbild-crop-hint';
+        hint.textContent = 'Ziehe das Bild zum Verschieben und nutze den Regler zum Vergrößern.';
+        dialog.setAttribute('aria-describedby', hint.id);
+
+        const zoomLabel = document.createElement('label');
+        zoomLabel.className = 'Nutzerbild-crop-zoom';
+        const zoomText = document.createElement('span');
+        zoomText.textContent = 'Zoom';
+        const zoom = document.createElement('input');
+        zoom.type = 'range';
+        zoom.min = '1';
+        zoom.max = '3';
+        zoom.step = '0.01';
+        zoom.value = '1';
+        zoom.setAttribute('aria-label', 'Bild vergrößern');
+        zoomLabel.append(zoomText, zoom);
+
+        const status = document.createElement('p');
+        status.className = 'Nutzerbild-crop-status';
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+
+        const actions = document.createElement('footer');
+        actions.className = 'Nutzerbild-crop-actions';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'Nutzerbild-crop-cancel';
+        cancel.textContent = 'Abbrechen';
+        const finish = document.createElement('button');
+        finish.type = 'button';
+        finish.className = 'Nutzerbild-crop-finish';
+        finish.textContent = 'Fertig';
+        actions.append(cancel, finish);
+        dialog.append(header, stage, hint, zoomLabel, status, actions);
+        backdrop.append(dialog);
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+            URL.revokeObjectURL(imageUrl);
+            await alert('Der Bildzuschnitt wird von diesem Browser nicht unterstützt.');
+            return false;
+        }
+
+        const baseScale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+        let scale = baseScale;
+        let offsetX = (width - image.naturalWidth * scale) / 2;
+        let offsetY = (height - image.naturalHeight * scale) / 2;
+        let drag = null;
+        let saving = false;
+        const previousFocus = document.activeElement;
+        const previousBodyOverflow = document.body.style.overflow;
+
+        const draw = () => {
+            const drawWidth = image.naturalWidth * scale;
+            const drawHeight = image.naturalHeight * scale;
+            offsetX = Math.max(width - drawWidth, Math.min(0, offsetX));
+            offsetY = Math.max(height - drawHeight, Math.min(0, offsetY));
+            context.clearRect(0, 0, width, height);
+            if (isBanner) {
+                context.fillStyle = '#19171f';
+                context.fillRect(0, 0, width, height);
+            }
+            context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+        };
+
+        const close = result => {
+            if (this.cropDialog?.close !== close || (saving && result !== true)) return;
+            window.removeEventListener('keydown', onKeydown, true);
+            URL.revokeObjectURL(imageUrl);
+            document.body.style.overflow = previousBodyOverflow;
+            backdrop.remove();
+            this.cropDialog = null;
+            if (previousFocus?.isConnected) previousFocus.focus();
+            resolveCrop(result);
+        };
+
+        let resolveCrop;
+        const cropPromise = new Promise(resolve => { resolveCrop = resolve; });
+        const focusable = () => [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), canvas[tabindex]')];
+        const onKeydown = event => {
+            if (event.key === 'Escape' && !saving) {
+                event.preventDefault();
+                close(false);
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const items = focusable();
+            if (!items.length) return;
+            if (event.shiftKey && document.activeElement === items[0]) {
+                event.preventDefault();
+                items.at(-1).focus();
+            } else if (!event.shiftKey && document.activeElement === items.at(-1)) {
+                event.preventDefault();
+                items[0].focus();
             }
         };
-        input.click();
+
+        backdrop.addEventListener('pointerdown', event => {
+            if (event.target === backdrop && !saving) close(false);
+        });
+        cancel.addEventListener('click', () => { if (!saving) close(false); });
+        zoom.addEventListener('input', () => {
+            const oldScale = scale;
+            const centerX = (width / 2 - offsetX) / oldScale;
+            const centerY = (height / 2 - offsetY) / oldScale;
+            scale = baseScale * Number(zoom.value);
+            offsetX = width / 2 - centerX * scale;
+            offsetY = height / 2 - centerY * scale;
+            draw();
+        });
+        canvas.addEventListener('pointerdown', event => {
+            if (event.button !== 0 || saving) return;
+            drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+            canvas.setPointerCapture(event.pointerId);
+            canvas.classList.add('is-dragging');
+            event.preventDefault();
+        });
+        canvas.addEventListener('pointermove', event => {
+            if (!drag || drag.id !== event.pointerId) return;
+            const rect = canvas.getBoundingClientRect();
+            offsetX += (event.clientX - drag.x) * width / rect.width;
+            offsetY += (event.clientY - drag.y) * height / rect.height;
+            drag.x = event.clientX;
+            drag.y = event.clientY;
+            draw();
+        });
+        const endDrag = () => { drag = null; canvas.classList.remove('is-dragging'); };
+        canvas.addEventListener('pointerup', endDrag);
+        canvas.addEventListener('pointercancel', endDrag);
+
+        finish.addEventListener('click', async () => {
+            if (saving) return;
+            saving = true;
+            finish.disabled = true;
+            cancel.disabled = true;
+            finish.textContent = 'Speichere …';
+            status.textContent = '';
+            try {
+                if (window.Nutzerspeicher.getAktiveKontoId() !== accountId) {
+                    throw new Error('Das aktive Konto wurde gewechselt. Bitte starte den Upload erneut.');
+                }
+                const outputType = isBanner ? 'image/jpeg' : 'image/webp';
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, outputType, 0.86));
+                if (!blob) throw new Error('Das Bild konnte nicht verarbeitet werden.');
+                const extension = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+                const outputFile = new File([blob], `astrieos-${typ}-${Date.now()}.${extension}`, { type: blob.type });
+                const save = isBanner
+                    ? window.Nutzerspeicher.speichereDateiAlsBanner(outputFile, accountId)
+                    : window.Nutzerspeicher.speichereDateiAlsProfilbild(outputFile, accountId);
+                if (!await save) throw new Error('Das zugeschnittene Bild konnte nicht gespeichert werden.');
+                this.aktualisiereKontoDashboard();
+                this.ladeUndZeigeBenutzerdaten();
+                close(true);
+            } catch (error) {
+                saving = false;
+                finish.disabled = false;
+                cancel.disabled = false;
+                finish.textContent = 'Fertig';
+                status.classList.add('is-error');
+                status.textContent = error.message || 'Das Bild konnte nicht gespeichert werden.';
+            }
+        });
+
+        this.cropDialog = { close };
+        document.body.style.overflow = 'hidden';
+        document.body.append(backdrop);
+        window.addEventListener('keydown', onKeydown, true);
+        draw();
+        requestAnimationFrame(() => finish.focus());
+        return cropPromise;
     },
 
     /**

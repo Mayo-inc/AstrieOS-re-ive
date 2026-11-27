@@ -241,20 +241,73 @@ body {
 .Achievement-notification {
     display: flex;
     align-items: center;
-    gap: 12px;
     padding: 14px 16px;
-    border: 1px solid rgb(156 255 154 / 0.65);
-    border-radius: 14px;
-    background: rgb(30 30 43 / 0.92);
+    border: 1px solid color-mix(in srgb, var(--material-you-outline, #d8b9ed) 38%, transparent);
+    border-radius: 16px;
+    color: var(--material-you-dark-text, #fff);
+    background: color-mix(in srgb, var(--material-you-surface, #19171f) 86%, var(--material-you-primary-container, #694785));
     box-shadow: 0 12px 30px rgb(0 0 0 / 0.3);
     backdrop-filter: blur(16px);
     animation: Achievement-in 0.18s ease-out;
 }
 
-.Achievement-notification img { width: 32px; height: 32px; }
 .Achievement-notification strong, .Achievement-notification span { display: block; }
 .Achievement-notification span { margin-top: 3px; opacity: 0.72; font-size: 0.9rem; }
 .Achievement-notification.is-leaving { animation: Achievement-out 0.22s ease-in forwards; }
+
+.Nutzerbild-crop-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 12000000;
+    display: grid;
+    place-items: center;
+    overflow: auto;
+    padding: 18px;
+    background: rgb(9 7 16 / .68);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.Nutzerbild-crop-dialog {
+    width: min(100%, 620px);
+    max-height: 92vh;
+    box-sizing: border-box;
+    overflow: auto;
+    padding: clamp(16px, 4vw, 26px);
+    border: 1px solid color-mix(in srgb, var(--material-you-outline, #d8b9ed) 30%, transparent);
+    border-radius: 22px;
+    color: var(--material-you-dark-text, #fff);
+    background: color-mix(in srgb, var(--material-you-surface, #19171f) 92%, var(--material-you-primary-container, #694785));
+    box-shadow: 0 24px 80px rgb(0 0 0 / .48);
+}
+
+.Nutzerbild-crop-header { margin-bottom: 16px; }
+.Nutzerbild-crop-header h2 { margin: 0; font-size: 1.3rem; }
+.Nutzerbild-crop-stage { display: grid; min-height: 120px; place-items: center; overflow: hidden; padding: 12px; border: 1px solid color-mix(in srgb, var(--material-you-outline, #d8b9ed) 18%, transparent); border-radius: 16px; background: #0d0b12; }
+.Nutzerbild-crop-stage canvas { display: block; width: auto; max-width: 100%; max-height: 52vh; border-radius: 8px; cursor: grab; touch-action: none; user-select: none; }
+.Nutzerbild-crop-stage canvas.is-dragging { cursor: grabbing; }
+.Nutzerbild-crop-hint { margin: 12px 0; color: color-mix(in srgb, var(--material-you-dark-text, #fff) 68%, transparent); font-size: .88rem; line-height: 1.45; }
+.Nutzerbild-crop-zoom { display: grid; gap: 9px; font-size: .88rem; font-weight: 600; }
+.Nutzerbild-crop-zoom input { width: 100%; accent-color: var(--material-you-primary, #bd82eb); }
+.Nutzerbild-crop-status { margin: 8px 0 0; color: #ff9d9d; font-size: .86rem; }
+.Nutzerbild-crop-status:empty { display: none; }
+.Nutzerbild-crop-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+.Nutzerbild-crop-actions button { min-width: 104px; min-height: 44px; padding: 9px 16px; border: 1px solid color-mix(in srgb, var(--material-you-outline, #d8b9ed) 24%, transparent); border-radius: 13px; color: var(--material-you-dark-text, #fff); background: color-mix(in srgb, var(--material-you-surface-variant, #302b38) 80%, transparent); font: inherit; cursor: pointer; }
+.Nutzerbild-crop-actions button:focus-visible { outline: 2px solid var(--material-you-outline, #d8b9ed); outline-offset: 2px; }
+.Nutzerbild-crop-actions .Nutzerbild-crop-finish { border-color: transparent; background: var(--material-you-primary, #bd82eb); color: var(--material-you-on-primary, #21182b); font-weight: 700; }
+.Nutzerbild-crop-actions button:disabled { opacity: .62; cursor: wait; }
+
+@media (max-width: 520px) {
+    .Nutzerbild-crop-backdrop { align-items: end; padding: 8px; }
+    .Nutzerbild-crop-dialog { max-height: 94vh; border-radius: 22px 22px 14px 14px; }
+    .Nutzerbild-crop-stage { padding: 8px; }
+    .Nutzerbild-crop-stage canvas { max-height: 44vh; }
+    .Nutzerbild-crop-actions button { min-width: 0; flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .Nutzerbild-crop-backdrop { scroll-behavior: auto; }
+}
 
 @keyframes Achievement-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes Achievement-out { to { opacity: 0; transform: translateX(24px); } }

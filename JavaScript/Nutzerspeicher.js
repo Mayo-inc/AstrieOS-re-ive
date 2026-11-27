@@ -1140,7 +1140,7 @@ const Nutzerspeicher = {
             konto.bannerUrl = updates.bannerUrl;
         }
         
-        this._speichereKonten(konten);
+        if (!this._speichereKonten(konten)) return false;
         window.dispatchEvent(new CustomEvent('astrie-account-changed', { detail: { kontoId } }));
         
         // Wenn dieses Konto aktiv ist, UI aktualisieren
@@ -1246,62 +1246,46 @@ const Nutzerspeicher = {
      * Speichert eine Datei als Profilbild (für aktives Konto)
      * @param {File} file - Hochgeladene Bilddatei
      */
-    speichereDateiAlsProfilbild(file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const base64Url = event.target.result;
-            const aktivesKonto = this.getAktivesKonto();
-            
-            if (aktivesKonto) {
-                this.aktualisiereKonto(aktivesKonto.id, {
-                    profilbildUrl: base64Url
-                });
-                
-                // Auch in alten Einstellungen speichern (für Kompatibilität)
-                const einstellungen = this.laden();
-                einstellungen.profilbildUrl = base64Url;
-                this.speichern(einstellungen);
-                
-                console.log('[Nutzerspeicher] Profilbild für aktives Konto gespeichert');
-            } else {
-                console.warn('[Nutzerspeicher] Kein aktives Konto gefunden');
-            }
-        };
-        reader.onerror = (error) => {
-            console.error('[Nutzerspeicher] Fehler beim Lesen der Profilbild-Datei:', error);
-        };
-        reader.readAsDataURL(file);
+    speichereDateiAlsProfilbild(file, kontoId = this.getAktiveKontoId()) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = event => {
+                try {
+                    if (!kontoId || !this.aktualisiereKonto(kontoId, { profilbildUrl: event.target.result })) {
+                        return reject(new Error('Profilbild konnte nicht gespeichert werden.'));
+                    }
+                    console.log('[Nutzerspeicher] Profilbild gespeichert');
+                    resolve(true);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = () => reject(reader.error || new Error('Profilbild-Datei konnte nicht gelesen werden.'));
+            reader.readAsDataURL(file);
+        });
     },
 
     /**
      * Speichert eine Datei als Banner (für aktives Konto)
      * @param {File} file - Hochgeladene Bilddatei
      */
-    speichereDateiAlsBanner(file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const base64Url = event.target.result;
-            const aktivesKonto = this.getAktivesKonto();
-            
-            if (aktivesKonto) {
-                this.aktualisiereKonto(aktivesKonto.id, {
-                    bannerUrl: base64Url
-                });
-                
-                // Auch in alten Einstellungen speichern (für Kompatibilität)
-                const einstellungen = this.laden();
-                einstellungen.bannerUrl = base64Url;
-                this.speichern(einstellungen);
-                
-                console.log('[Nutzerspeicher] Banner für aktives Konto gespeichert');
-            } else {
-                console.warn('[Nutzerspeicher] Kein aktives Konto gefunden');
-            }
-        };
-        reader.onerror = (error) => {
-            console.error('[Nutzerspeicher] Fehler beim Lesen der Banner-Datei:', error);
-        };
-        reader.readAsDataURL(file);
+    speichereDateiAlsBanner(file, kontoId = this.getAktiveKontoId()) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = event => {
+                try {
+                    if (!kontoId || !this.aktualisiereKonto(kontoId, { bannerUrl: event.target.result })) {
+                        return reject(new Error('Banner konnte nicht gespeichert werden.'));
+                    }
+                    console.log('[Nutzerspeicher] Banner gespeichert');
+                    resolve(true);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = () => reject(reader.error || new Error('Banner-Datei konnte nicht gelesen werden.'));
+            reader.readAsDataURL(file);
+        });
     },
     _openWallpaperDatabase() {
         if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB wird von diesem Browser nicht unterstützt.'));

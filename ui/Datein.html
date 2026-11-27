@@ -1,4 +1,5 @@
 <template id="Datein-placeholder">
+    <div class="Datein-window-container">
     <section class="Datein-placeholder" aria-label="Dateimanager">
         <div class="Datein-content">
             <nav class="Datein-addresse" aria-label="Ordnerpfad">
@@ -17,14 +18,15 @@
                     <option value="size">Größe</option>
                     <option value="type">Typ</option>
                 </select>
-                <button class="Datein-btn" type="button" data-action="upload"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/upload_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Hochladen</span></button>
-                <button class="Datein-btn Datein-create" type="button" data-action="create"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/add_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Neu erstellen</span></button>
+                <button class="Datein-btn" type="button" data-action="upload" aria-label="Dateien hochladen"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/upload_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Hochladen</span></button>
+                <button class="Datein-btn Datein-create" type="button" data-action="create" aria-label="Neuen Ordner erstellen"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/add_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Neu erstellen</span></button>
                 <input class="Datein-file-input" type="file" multiple hidden>
             </div>
 
             <div class="Datein-status" role="status" aria-live="polite"></div>
             <div class="Datein-list" role="list" aria-label="Dateien und Ordner"></div>
-            <footer class="Datein-footer"><span class="Datein-count">0 Elemente</span><button class="Datein-btn Datein-trash" type="button" data-action="trash"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/Folder/delete_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Papierkorb</span></button></footer>
+            <footer class="Datein-footer"><span class="Datein-count">0 Elemente</span><button class="Datein-btn Datein-trash" type="button" data-action="trash" aria-label="Papierkorb öffnen"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/Folder/delete_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Papierkorb</span></button></footer>
         </div>
     </section>
+    </div>
 </template>

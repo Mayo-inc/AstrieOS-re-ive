@@ -1,29 +1,168 @@
-function updateErfolgenUI(status) {
-    const root = document.querySelector('.Window-content[data-window-id="erfolgen"]');
-    if (!root) return;
-
-    const setText = (selector, value) => {
-        const element = root.querySelector(selector);
-        if (element) element.textContent = value;
-    };
-    const percentage = Math.round((status.unlockedCount / 8) * 100);
-    setText('#Erfolgen-tracken', `${percentage}%`);
-    setText('#Erfolgen-nummer', status.unlockedCount);
-    setText('#user-runtime', formatUserDuration(status.activeMilliseconds));
-    setText('#user-session', formatUserDuration(status.longestSessionMilliseconds));
-    setText('#user-clicks', status.clicks.toLocaleString('de-DE'));
-    const trackedTime = status.activeMilliseconds + status.afkMilliseconds;
-    setText('#user-afk', trackedTime ? Math.round((status.afkMilliseconds / trackedTime) * 100) : 0);
-
-    root.querySelectorAll('[data-achievement]').forEach((card) => {
-        const unlocked = Boolean(status.achievements[card.dataset.achievement]);
-        card.classList.toggle('is-unlocked', unlocked);
-        card.classList.toggle('is-locked', !unlocked);
-        card.setAttribute('aria-label', unlocked ? 'Erfolg freigeschaltet' : 'Erfolg gesperrt');
+function bindAchievementFilters(root) {
+    const grid = root.querySelector('[data-achievement-grid]');
+    if (!grid) return;
+    grid.dataset.filter ||= 'all';
+    root.querySelectorAll('[data-achievement-filter]').forEach(button => {
+        if (button.dataset.bound) return;
+        button.dataset.bound = 'true';
+        button.addEventListener('click', () => {
+            grid.dataset.filter = button.dataset.achievementFilter;
+            root.querySelectorAll('[data-achievement-filter]').forEach(filter => {
+                filter.setAttribute('aria-pressed', String(filter === button));
+            });
+            applyAchievementFilter(grid);
+        });
     });
 }
 
+function applyAchievementFilter(grid) {
+    if (!grid) return;
+    const filter = grid.dataset.filter || 'all';
+    grid.querySelectorAll('[data-achievement]').forEach(card => {
+        const unlocked = card.classList.contains('is-unlocked');
+        card.hidden = (filter === 'unlocked' && !unlocked) || (filter === 'locked' && unlocked);
+    });
+}
+
+function renderAchievementCards(root) {
+    const grid = root.querySelector('[data-achievement-grid]');
+    if (!grid || grid.dataset.rendered === 'true') return;
+    const cards = UserStatus.achievementDefinitions.map(achievement => {
+        const card = document.createElement('article');
+        card.className = 'Achievement-card is-locked';
+        card.dataset.achievement = achievement.id;
+        card.dataset.category = achievement.category;
+
+        const top = document.createElement('div');
+        top.className = 'Achievement-card-top';
+        const category = document.createElement('p');
+        category.className = 'Achievement-category';
+        category.textContent = achievement.category;
+        const state = document.createElement('span');
+        state.className = 'Achievement-state';
+        state.dataset.achievementState = '';
+        top.append(category, state);
+        const title = document.createElement('h3');
+        title.textContent = achievement.title;
+        const description = document.createElement('p');
+        description.className = 'Achievement-description';
+        description.textContent = achievement.description;
+
+        const progress = document.createElement('div');
+        progress.className = 'Achievement-card-progress';
+        const track = document.createElement('div');
+        track.className = 'Achievement-progress-track';
+        track.setAttribute('role', 'progressbar');
+        track.setAttribute('aria-label', `Fortschritt: ${achievement.title}`);
+        track.setAttribute('aria-valuemin', '0');
+        track.setAttribute('aria-valuemax', '100');
+        track.setAttribute('aria-valuenow', '0');
+        const fill = document.createElement('span');
+        fill.dataset.achievementBar = '';
+        track.append(fill);
+        const count = document.createElement('p');
+        count.dataset.achievementProgress = '';
+        progress.append(track, count);
+        card.append(top, title, description, progress);
+        return card;
+    });
+    grid.replaceChildren(...cards);
+    grid.dataset.rendered = 'true';
+}
+
+function renderAchievementProfile(root) {
+    const account = window.Nutzerspeicher?.getAktivesKonto?.();
+    const profile = account || window.Nutzerspeicher?.ladeBenutzerdaten?.() || {};
+    const name = profile.username || 'Gast!';
+    const avatar = root.querySelector('[data-profile-avatar]');
+    const banner = root.querySelector('[data-profile-banner]');
+    const nameElement = root.querySelector('[data-profile-name]');
+    const defaultAvatar = '/Res/Bild/Logo/AddText_07-03-07.27.32.png';
+    const defaultBanner = '/Res/Bild/Hintergrund/Default-Banner.png';
+
+    if (nameElement) nameElement.textContent = name;
+    if (avatar) {
+        const source = profile.profilbildUrl || defaultAvatar;
+        if (avatar.getAttribute('src') !== source) avatar.src = source;
+        avatar.alt = `Profilbild von ${name}`;
+        if (avatar.dataset.fallbackBound !== 'true') {
+            avatar.dataset.fallbackBound = 'true';
+            avatar.onerror = () => {
+                const fallback = new URL(defaultAvatar, document.baseURI).href;
+                if (avatar.src !== fallback) avatar.src = defaultAvatar;
+            };
+        }
+    }
+    if (banner) {
+        const source = profile.bannerUrl || defaultBanner;
+        if (banner.getAttribute('src') !== source) banner.src = source;
+        if (banner.dataset.fallbackBound !== 'true') {
+            banner.dataset.fallbackBound = 'true';
+            banner.onerror = () => {
+                const fallback = new URL(defaultBanner, document.baseURI).href;
+                if (banner.src !== fallback) banner.src = defaultBanner;
+            };
+        }
+    }
+}
+
+function updateErfolgenUI(status) {
+    const root = document.querySelector('.Erfolgen-placeholder');
+    if (!root) return;
+    renderAchievementCards(root);
+    bindAchievementFilters(root);
+
+    const setText = (selector, value) => {
+        const element = root.querySelector(selector);
+        if (element) element.textContent = String(value);
+    };
+    const total = status.totalCount || UserStatus.achievementDefinitions.length;
+    const percentage = total ? Math.round(status.unlockedCount / total * 100) : 0;
+    setText('#Erfolgen-tracken', `${percentage}%`);
+    setText('#Erfolgen-nummer', status.unlockedCount);
+    setText('#Erfolgen-gesamt', total);
+    setText('#user-runtime', formatUserDuration(status.activeMilliseconds));
+    setText('#user-session', formatUserDuration(status.longestSessionMilliseconds));
+    setText('#user-visits', status.visits.toLocaleString('de-DE'));
+    setText('#user-clicks', status.clicks.toLocaleString('de-DE'));
+    const trackedTime = status.activeMilliseconds + status.afkMilliseconds;
+    setText('#user-afk', `${trackedTime ? Math.round(status.afkMilliseconds / trackedTime * 100) : 0}%`);
+
+    const progressTrack = root.querySelector('.Achievement-overall-progress');
+    const progressFill = root.querySelector('[data-overall-progress]');
+    if (progressTrack) progressTrack.setAttribute('aria-valuenow', String(percentage));
+    if (progressFill) progressFill.style.width = `${percentage}%`;
+
+    root.querySelectorAll('[data-achievement]').forEach(card => {
+        const achievement = UserStatus.achievementDefinitions.find(item => item.id === card.dataset.achievement);
+        if (!achievement) return;
+        const unlocked = Boolean(status.achievements[achievement.id]);
+        card.classList.toggle('is-unlocked', unlocked);
+        card.classList.toggle('is-locked', !unlocked);
+        card.setAttribute('aria-label', `${achievement.title}: ${unlocked ? 'freigeschaltet' : 'noch offen'}`);
+        const state = card.querySelector('[data-achievement-state]');
+        if (state) state.textContent = unlocked ? 'Erreicht' : 'Offen';
+
+        const progress = achievement.progress(status);
+        const ratio = progress.target ? Math.min(100, Math.round(progress.current / progress.target * 100)) : 0;
+        const bar = card.querySelector('[data-achievement-bar]');
+        const count = card.querySelector('[data-achievement-progress]');
+        if (bar) bar.style.width = `${ratio}%`;
+        const track = bar?.parentElement;
+        if (track) track.setAttribute('aria-valuenow', String(ratio));
+        if (count) {
+            const format = progress.format || (value => Number(value).toLocaleString('de-DE'));
+            count.textContent = `${format(progress.current)} / ${format(progress.target)}`;
+        }
+    });
+    applyAchievementFilter(root.querySelector('[data-achievement-grid]'));
+}
+
 UserStatus.subscribe(updateErfolgenUI);
+window.addEventListener('astrie-account-changed', () => {
+    const root = document.querySelector('.Erfolgen-placeholder');
+    if (root) renderAchievementProfile(root);
+});
 
 AstrieRuntime
     .register({
@@ -50,7 +189,10 @@ AstrieRuntime
         styleUrl: '/ui/Ui_css/Erfolgen.css',
         width: 1280,
         height: 720,
-        mount: () => updateErfolgenUI(UserStatus.snapshot())
+        mount: ({ root }) => {
+            renderAchievementProfile(root);
+            updateErfolgenUI(UserStatus.snapshot());
+        }
     })
     .register({
         id: 'musikplayer',

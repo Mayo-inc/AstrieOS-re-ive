@@ -3,7 +3,7 @@ importScripts('/version.js');
 const CACHE_NAME = `astrieos-${self.ASTRIEOS_VERSION}`;
 const APP_SHELL = [
     '/', '/index.html', '/index.css', '/version.json',
-    '/JavaScript/Window_system.js', '/JavaScript/Erfolgen.js', '/JavaScript/ui.js',
+    '/JavaScript/Window_system.js', '/JavaScript/Erfolgen.js', '/JavaScript/ui.js', '/JavaScript/Dateinmanager.js',
     '/JavaScript/Soundeffekt.js', '/JavaScript/toggle.js', '/JavaScript/Ladenoverlay.js',
     '/JavaScript/Hintergrund-tracking.js', '/JavaScript/Nutzeruhr.js', '/JavaScript/untertitlel_system.js',
     '/JavaScript/Benachrichtigen.js', '/JavaScript/Update_hernterladen.js', '/JavaScript/Markdown_changelog.js', '/JavaScript/Einstellungen.js',
@@ -12,7 +12,9 @@ const APP_SHELL = [
     '/JavaScript/Nutzerspeicher.js', '/JavaScript/popup.js',
     '/ui/Einstellungen.html', '/ui/Debug-menu.html', '/ui/Ui_css/Debug-menu.css',
     '/ui/Benachrichtigung.html', '/ui/Nutzercenter.html', '/ui/changelog.html', '/ui/Ui_css/changelog.css',
-    '/changelogs/index.json', '/changelogs/2026-10-24.md', '/changelogs/2026-11-25.md',
+    '/ui/Erfolgen.html', '/ui/Ui_css/Erfolgen.css',
+    '/ui/Datein.html', '/ui/Ui_css/Datein.css',
+    '/changelogs/index.json', '/changelogs/2026-10-24.md', '/changelogs/2026-11-30.md',
     '/ui/overlay/window.html'
 ];
 
