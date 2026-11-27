@@ -25,8 +25,16 @@ function placeholder_user() {
 function placeholder_setting() {
     const el = document.querySelector('.Einstellungen-placeholder')
     if (el) {
-        el.classList.contains('Open') ? Sound.play('menu-close') : Sound.play('menu-open');
+        const wasOpen = el.classList.contains('Open');
+        wasOpen ? Sound.play('menu-close') : Sound.play('menu-open');
         el.classList.toggle('Open')
+        if (!wasOpen) {
+            const attachPlayerSettings = () => window.Mediaplayer?.attachSettingsControls?.();
+            if (window.Mediaplayer) attachPlayerSettings();
+            else window.AstrieRuntime?.loadScript?.('/JavaScript/Mediaplayer.js')
+                .then(attachPlayerSettings)
+                .catch(error => console.error('[Einstellungen] Mediaplayer-Regler konnten nicht geladen werden:', error));
+        }
     }
 }
 
