@@ -1,27 +1,30 @@
 <template id="Datein-placeholder">
-    <div class="Datein-placeholder" id="Folder-placeholder">
+    <section class="Datein-placeholder" aria-label="Dateimanager">
         <div class="Datein-content">
-            <div class="Datein-addresse">
-                <div class="Datein-btn"><img class="Datein-root" src="/Res/Bild/Icon/Datein/database_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"></div>
-                <div class="Datein-btn"><img class="Datein-folgen" src="/Res/Bild/Icon/Datein/keyboard_arrow_right_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"></div>
-                <div class="Datein-btn"><img class="Datein-nutzer" src="/Res/Bild/Icon/Datein/person_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p><span class="Datein-name" id="Datein-nutzername">Gast!</span></p></div>
-            </div>
+            <nav class="Datein-addresse" aria-label="Ordnerpfad">
+                <button class="Datein-btn Datein-root" type="button" data-action="home" aria-label="Startordner">
+                    <img src="/Res/Bild/Icon/Datein/database_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt="">
+                </button>
+                <div class="Datein-breadcrumbs" aria-live="polite"></div>
+                <span class="Datein-account"><img src="/Res/Bild/Icon/Datein/person_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span class="Datein-name">Gast!</span></span>
+            </nav>
+
             <div class="Datein-tools">
-                <div class="Datein-suche"><input type="text" class="D-suche" placeholder="Suchen mich!"></div>
-                <div class="Datein-btn"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/format_list_bulleted_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Filters!</p></div>
-                <div class="Datein-btn"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/side_navigation_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Teilen!</p></div>
-                <div class="Datein-btn"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/upload_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Hochladen datein!</p></div>
-                <div class="Datein-btn" onclick="ertstellen_button()"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/add_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Neu erstellen!</p></div>
+                <label class="Datein-suche"><span class="sr-only">Dateien suchen</span><input type="search" class="D-suche" placeholder="Dateien und Ordner suchen …"></label>
+                <select class="Datein-sort" aria-label="Sortierung">
+                    <option value="name">Name</option>
+                    <option value="modified">Zuletzt geändert</option>
+                    <option value="size">Größe</option>
+                    <option value="type">Typ</option>
+                </select>
+                <button class="Datein-btn" type="button" data-action="upload"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/upload_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Hochladen</span></button>
+                <button class="Datein-btn Datein-create" type="button" data-action="create"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/add_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Neu erstellen</span></button>
+                <input class="Datein-file-input" type="file" multiple hidden>
             </div>
-            <div class="Datein--content">
-                <div class="Datein-folder-btn"><img class="Folder-icon" src="/Res/Bild/Icon/Datein/Folder/home_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Dein zuhause!</p></div>
-                <div class="Datein-folder-btn"><img class="Folder-icon" src="/Res/Bild/Icon/Datein/Folder/description_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Dokument!</p></div>
-                <div class="Datein-folder-btn"><img class="Folder-icon" src="/Res/Bild/Icon/Datein/Folder/download_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Herunterladen!</p></div>
-                <div class="Datein-folder-btn"><img class="Folder-icon" src="/Res/Bild/Icon/Datein/Folder/video_library_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Video!</p></div>
-                <div class="Datein-folder-btn"><img class="Folder-icon" src="/Res/Bild/Icon/Datein/Folder/music_note_2_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Audio!</p></div>
-                <div class="Datein-folder-btn"><img class="Folder-icon" src="/Res/Bild/Icon/Datein/Folder/photo_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Bilder!</p></div>
-                <div class="Datein-folder-btn"><img class="Folder-icon" src="/Res/Bild/Icon/Datein/Folder/delete_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg"><p>Papierkorb!</p></div>
-            </div>
+
+            <div class="Datein-status" role="status" aria-live="polite"></div>
+            <div class="Datein-list" role="list" aria-label="Dateien und Ordner"></div>
+            <footer class="Datein-footer"><span class="Datein-count">0 Elemente</span><button class="Datein-btn Datein-trash" type="button" data-action="trash"><img class="Tools-icon" src="/Res/Bild/Icon/Datein/Folder/delete_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt=""><span>Papierkorb</span></button></footer>
         </div>
-    </div>
+    </section>
 </template>

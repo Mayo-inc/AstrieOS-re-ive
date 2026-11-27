@@ -1,16 +1,22 @@
 <template id="Window-border">
   <div class="Window-outline">
-    <div class="Window-header">
+    <header class="Window-header" aria-label="Fenstertitelleiste">
       <div class="Window-title">
-        <img class="Window-icon" src="/Res/Bild/Icon/download_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg">
-        <p class="Window-title-bold"><span id="Window-name">Placeholder lol</span></p>
+        <img class="Window-icon" src="/Res/Bild/Icon/download_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt="">
+        <p class="Window-title-bold"><span id="Window-name">Fenster</span></p>
       </div>
-      <div class="Window-button">
-        <div class="Window-hidden"></div>
-        <div class="Window-fullscreen"></div>
-        <div class="Window-schließen"></div>
+      <div class="Window-controls" aria-label="Fenstersteuerung">
+        <button class="Window-control Window-hidden" type="button" aria-label="Fenster minimieren" title="Minimieren">
+          <img src="/Res/Bild/Icon/Window/minimize_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt="">
+        </button>
+        <button class="Window-control Window-fullscreen" type="button" aria-label="Fenster maximieren" title="Maximieren" aria-pressed="false">
+          <img src="/Res/Bild/Icon/Window/select_window_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt="">
+        </button>
+        <button class="Window-control Window-schließen" type="button" aria-label="Fenster schließen" title="Schließen">
+          <img src="/Res/Bild/Icon/Window/close_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg" alt="">
+        </button>
       </div>
-    </div>
+    </header>
   </div>
-  <div class="Window-content"></div>
+  <section class="Window-content" aria-label="Fensterinhalt"></section>
 </template>

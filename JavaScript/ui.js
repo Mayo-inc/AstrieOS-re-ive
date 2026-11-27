@@ -1,13 +1,3 @@
-let DateinTemplate = null;
-let windowTemplateReady = false;
-let dateinStylesLoaded = false;
-let ErfolgenTemplate = null
-let erfolgenStylesLoaded = false
-let MusikplayerTemplate = null
-let musicplayerStylesLoaded = false
-let WallhavenTemplate = null;
-let wallhavenStylesLoaded = false;
-
 function updateErfolgenUI(status) {
     const root = document.querySelector('.Window-content[data-window-id="erfolgen"]');
     if (!root) return;
@@ -34,6 +24,46 @@ function updateErfolgenUI(status) {
 }
 
 UserStatus.subscribe(updateErfolgenUI);
+
+AstrieRuntime
+    .register({
+        id: 'datein',
+        title: 'Datein! ^⎚-⎚^',
+        icon: '/Res/Bild/Icon/Topbar/folder_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg',
+        templateUrl: '/ui/Datein.html',
+        templateId: 'Datein-placeholder',
+        styleUrl: '/ui/Ui_css/Datein.css',
+        scriptUrls: ['/JavaScript/Dateinmanager.js'],
+        width: 1050,
+        height: 680,
+        mount: ({ root }) => {
+            const panel = root.querySelector('.Datein-placeholder');
+            if (panel) return window.Dateinmanager?.mount(panel);
+        }
+    })
+    .register({
+        id: 'erfolgen',
+        title: 'Fortschritten! ᕙ(  •̀ ᗜ •́  )ᕗ',
+        icon: '/Res/Bild/Icon/Topbar/trophy_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg',
+        templateUrl: '/ui/Erfolgen.html',
+        templateId: 'Erfolgen-ui',
+        styleUrl: '/ui/Ui_css/Erfolgen.css',
+        width: 1280,
+        height: 720,
+        mount: () => updateErfolgenUI(UserStatus.snapshot())
+    })
+    .register({
+        id: 'musikplayer',
+        title: 'Musikplayer! 〜امبر annakva👅🏻‬‬(⁀ᴥ⁀)‬',
+        icon: '/Res/Bild/Icon/Topbar/music_note_2_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg',
+        templateUrl: '/ui/mediaplayer.html',
+        templateId: 'mediaplayer-ui',
+        styleUrl: '/ui/Ui_css/Musikplayer.css',
+        scriptUrls: ['/JavaScript/Mediaplayer.js'],
+        presentation: 'panel',
+        rootSelector: '.Mediaplayer-placeholder',
+        mount: () => window.Mediaplayer?.init?.()
+    });
 
 fetch('/ui/Gretter.html')
     .then(res => {
@@ -82,151 +112,20 @@ fetch('/ui/Benachrichtigung.html')
         document.dispatchEvent(new Event('notifications-template-ready'));
     });
 
-fetch('/ui/mediaplayer.html')
-    .then(res => res.text())
-    .then(html => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const template = doc.querySelector('#mediaplayer-ui');
-        document.body.appendChild(template.content.cloneNode(true));
-        document.dispatchEvent(new Event('mediaplayer-template-ready'));
-    });
-
-fetch('/ui/overlay/window.html')
-    .then(res => res.text())
-    .then(html => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const template = doc.querySelector('#Window-border');
-        if (!template) throw new Error('Fenster-Template wurde nicht gefunden.');
-        WindowManager.init(template.content);
-        windowTemplateReady = true;
-    });
-
-fetch('/ui/Datein.html')
-    .then(res => res.text())
-    .then(html => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const template = doc.querySelector('#Datein-placeholder');
-        if (!template) throw new Error('Datei-Template wurde nicht gefunden.');
-        DateinTemplate = template.content;
-    });
-
-fetch('/ui/Erfolgen.html')
-    .then(res => res.text())
-    .then(html => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const template = doc.querySelector('#Erfolgen-ui');
-        if (!template) throw new Error('Datei-Template wurde nicht gefunden.');
-        ErfolgenTemplate = template.content;
-    });
-
-fetch('/ui/Musikplayer.html')
-    .then(res => res.text())
-    .then(html => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const template = doc.querySelector('#Musikplayer-ui');
-        if (!template) throw new Error('Datei-Template wurde nicht gefunden.');
-        MusikplayerTemplate = template.content;
-    });
-
-// Lade Wallhaven-Template
-fetch('/ui/Wallhaven.html')
-    .then(res => res.text())
-    .then(html => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const template = doc.querySelector('#wallhaven-ui');
-        if (!template) throw new Error('Wallhaven-Template wurde nicht gefunden.');
-        WallhavenTemplate = template.content;
-    });
-
 function openDateinWindow() {
-    if (!DateinTemplate || !windowTemplateReady) return;
-
-    if (WindowManager.windows['datein']) {
-        const w = WindowManager.windows['datein'];
-        if (w.minimized) {
-            WindowManager.restoreWindow('datein');
-        } else {
-            WindowManager.focusWindow('datein');
-        }
-        return;
-    }
-
-    const content = DateinTemplate.cloneNode(true);
-    if (!dateinStylesLoaded) {
-        const cssLink = document.createElement('link');
-        cssLink.rel = 'stylesheet';
-        cssLink.href = '/ui/Ui_css/Datein.css';
-        document.head.appendChild(cssLink);
-        dateinStylesLoaded = true;
-    }
-
-    WindowManager.createWindow({
-        id: 'datein',
-        title: 'Datein! ^⎚-⎚^',
-        icon: '/Res/Bild/Icon/Topbar/folder_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg',
-        content: content
-    });
+    return AstrieRuntime.open('datein');
 }
 
 function openwindow_trophy() {
-    if (!ErfolgenTemplate || !windowTemplateReady) return;
-
-    if (WindowManager.windows['erfolgen']) {
-        const w = WindowManager.windows['erfolgen'];
-        if (w.minimized) {
-            WindowManager.restoreWindow('erfolgen');
-        } else {
-            WindowManager.focusWindow('erfolgen');
-        }
-        return;
-    }
-
-    const content = ErfolgenTemplate.cloneNode(true);
-    if (!erfolgenStylesLoaded) {
-        const cssLink = document.createElement('link');
-        cssLink.rel = 'stylesheet';
-        cssLink.href = '/ui/Ui_css/Erfolgen.css';
-        document.head.appendChild(cssLink);
-        erfolgenStylesLoaded = true;
-    }
-
-    WindowManager.createWindow({
-        id: 'erfolgen',
-        title: 'Fortschritten! ᕙ(  •̀ ᗜ •́  )ᕗ',
-        icon: '/Res/Bild/Icon/Topbar/trophy_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg',
-        content: content
-    });
-    updateErfolgenUI(UserStatus.snapshot());
+    return AstrieRuntime.open('erfolgen');
 }
 
-function openMusikplayerWindow() {
-    if (!MusikplayerTemplate || !windowTemplateReady) return;
-
-    if (WindowManager.windows['musikplayer']) {
-        const w = WindowManager.windows['musikplayer'];
-        if (w.minimized) {
-            WindowManager.restoreWindow('musikplayer');
-        } else {
-            WindowManager.focusWindow('musikplayer');
-        }
-        return;
-    }
-
-    const content = MusikplayerTemplate.cloneNode(true);
-    if (!musicplayerStylesLoaded) {
-        const cssLink = document.createElement('link');
-        cssLink.rel = 'stylesheet';
-        cssLink.href = '/ui/Ui_css/Musikplayer.css';
-        document.head.appendChild(cssLink);
-        musicplayerStylesLoaded = true;
-    }
-
-    WindowManager.createWindow({
-        id: 'musikplayer',
-        title: 'Musikplayer! 〜امبر annakva👅🏻‬‬(⁀ᴥ⁀)‬',
-        icon: '/Res/Bild/Icon/Topbar/music_note_2_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg',
-        content: content
-    });
+function openMusikplayerPanel({ toggle = false } = {}) {
+    const panel = document.querySelector('.Mediaplayer-placeholder');
+    const wasOpen = Boolean(panel?.classList.contains('Open'));
+    const willOpen = toggle ? !wasOpen : true;
+    if (wasOpen !== willOpen && typeof Sound !== 'undefined') Sound.play(willOpen ? 'menu-open' : 'menu-close');
+    return AstrieRuntime.open('musikplayer', { toggle });
 }
 
 /**
@@ -241,36 +140,11 @@ const WallhavenManager = {
      * Öffnet das Wallhaven-Suchfenster
      */
     openWallhavenWindow() {
-        if (!WallhavenTemplate || !windowTemplateReady) return;
+        return window.AstrieRuntime.open('wallhaven-search');
+    },
 
-        if (WindowManager.windows['wallhaven-search']) {
-            const w = WindowManager.windows['wallhaven-search'];
-            if (w.minimized) {
-                WindowManager.restoreWindow('wallhaven-search');
-            } else {
-                WindowManager.focusWindow('wallhaven-search');
-            }
-            return;
-        }
-
-        const content = WallhavenTemplate.cloneNode(true);
-        if (!wallhavenStylesLoaded) {
-            const cssLink = document.createElement('link');
-            cssLink.rel = 'stylesheet';
-            cssLink.href = '/ui/Ui_css/Wallhaven.css';
-            document.head.appendChild(cssLink);
-            wallhavenStylesLoaded = true;
-        }
-
-        this.wallhavenWindow = WindowManager.createWindow({
-            id: 'wallhaven-search',
-            title: 'Wallhaven Suche',
-            icon: '/Res/Bild/Icon/Topbar/search_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg',
-            content: content,
-            width: 800,
-            height: 600
-        });
-        const root = this.wallhavenWindow?.content;
+    mountWindow(root, win) {
+        this.wallhavenWindow = win;
         root?.querySelector('.wallhaven-button')?.addEventListener('click', () => this._searchWallhaven(1));
         root?.querySelector('.wallhaven-input')?.addEventListener('keydown', event => {
             if (event.key === 'Enter') this._searchWallhaven(1);
@@ -443,3 +317,15 @@ const WallhavenManager = {
 
 // Export für andere Module
 window.WallhavenManager = WallhavenManager;
+
+AstrieRuntime.register({
+    id: 'wallhaven-search',
+    title: 'Wallhaven Suche',
+    icon: '/Res/Bild/Icon/Topbar/search_24dp_FFFFFF_FILL1_wght400_GRAD0_opsz24.svg',
+    templateUrl: '/ui/Wallhaven.html',
+    templateId: 'wallhaven-ui',
+    styleUrl: '/ui/Ui_css/Wallhaven.css',
+    width: 800,
+    height: 600,
+    mount: ({ root, window: win }) => WallhavenManager.mountWindow(root, win)
+});

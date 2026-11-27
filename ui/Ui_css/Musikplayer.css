@@ -1,49 +1,20 @@
-body {
-    padding: 0;
-    margin: 0;
-    cursor: default;
-    background-color: rgb(38 38 54);
-    font-size: 1rem;
-    color: #ffffff;
+.Mediaplayer-placeholder {
+    box-sizing: border-box;
+    max-height: calc(100vh - 116px);
+    overflow-y: auto;
 }
 
-.Musikplayer-placeholder {
-    position: fixed;
-    display: flex;
-    align-content: center;
-    justify-content: center;
-    color: #ffffff;
-    user-select: none;
+.material-you-enabled .Mediaplayer-placeholder {
+    border: 1px solid color-mix(in srgb, var(--material-you-outline) 24%, transparent);
+    background-color: color-mix(in srgb, var(--material-you-dark) 88%, transparent);
+    color: var(--material-you-dark-text);
 }
 
-.Musikplayer-topbar {
-    background-color: #16161c;
-    position: fixed;
-    left: 0;
-    right: 0;
-    padding: 4px 18px;
-}
-
-.Musikplayer-title {
-    margin-right: 8px;
-    font-size: 1.15rem;
-    font-weight: 600;
-}
-
-.Musikplayer-links-topbar {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-}
-
-.Musikplayer-btn {
-    padding: 14px 14px;
-    border-radius: 12px;
-    transition: all 0.18s ease;
-    cursor: pointer;
-}
-
-.Musikplayer-btn:hover {
-    transition: all 0s ease;
-    background-color: #505071;
+@media (max-width: 600px) {
+    .Mediaplayer-placeholder {
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-height: calc(100vh - 108px);
+    }
 }

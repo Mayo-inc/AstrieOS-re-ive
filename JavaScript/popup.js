@@ -4,6 +4,7 @@ const Popup = {
     backdrop: null,
     dialog: null,
     actions: null,
+    choiceList: null,
     isOpen: false,
     activeMode: 'alert',
     previousFocus: null,
@@ -30,6 +31,7 @@ const Popup = {
                 this.backdrop = this.root.querySelector('[data-popup-backdrop]');
                 this.dialog = this.root.querySelector('.popup-dialog');
                 this.actions = this.root.querySelector('[data-popup-actions]');
+                this.choiceList = this.root.querySelector('[data-popup-choices]');
 
                 const css = document.createElement('link');
                 css.rel = 'stylesheet';
@@ -63,6 +65,10 @@ const Popup = {
         return this._queueModal({ ...options, message, mode: 'prompt' });
     },
 
+    choose(message, choices, options = {}) {
+        return this._queueModal({ ...options, message, choices, mode: 'choose' });
+    },
+
     _queueModal(options) {
         const result = this.modalQueue.then(() => this._showModal(options));
         this.modalQueue = result.then(() => undefined, () => undefined);
@@ -89,20 +95,24 @@ const Popup = {
         const inputLabel = this.root.querySelector('[data-popup-input-label]');
         const input = this.root.querySelector('[data-popup-input]');
         const isPrompt = options.mode === 'prompt';
+        const isChoose = options.mode === 'choose';
         inputLabel.hidden = !isPrompt;
+        this.choiceList.hidden = !isChoose;
+        this.choiceList.replaceChildren();
         input.value = isPrompt ? String(options.value ?? '') : '';
         input.type = options.inputType === 'password' ? 'password' : 'text';
         this.root.querySelector('[data-popup-input-caption]').textContent = options.inputLabel || 'Eingabe';
 
         return new Promise(resolve => {
             this.resolveActive = resolve;
-            if (options.mode !== 'alert') {
+            if (isChoose) {
+                (options.choices || []).forEach(choice => this.choiceList.append(this._makeChoice(choice)));
+                this.actions.appendChild(this._makeAction(options.cancelLabel || 'Abbrechen', false));
+            } else if (options.mode !== 'alert') {
                 this.actions.appendChild(this._makeAction(options.cancelLabel || 'Abbrechen', false));
             }
-            this.actions.appendChild(this._makeAction(
-                options.confirmLabel || (isPrompt ? 'Übernehmen' : 'OK'),
-                true,
-                Boolean(options.danger)
+            if (!isChoose) this.actions.appendChild(this._makeAction(
+                options.confirmLabel || (isPrompt ? 'Übernehmen' : 'OK'), true, Boolean(options.danger)
             ));
             if (isPrompt) {
                 this.promptKeyHandler = event => {
@@ -115,9 +125,35 @@ const Popup = {
             }
             requestAnimationFrame(() => {
                 if (isPrompt) input.focus();
+                else if (isChoose) this.choiceList.querySelector('button')?.focus();
                 else this.actions.querySelector('.popup-action-primary')?.focus();
             });
         });
+    },
+
+    _makeChoice(choice) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'popup-choice';
+        if (choice.icon) {
+            const icon = document.createElement('img');
+            icon.src = choice.icon;
+            icon.alt = '';
+            button.append(icon);
+        }
+        const copy = document.createElement('span');
+        copy.className = 'popup-choice-copy';
+        const title = document.createElement('strong');
+        title.textContent = choice.label || String(choice.value ?? 'Öffnen');
+        copy.append(title);
+        if (choice.description) {
+            const description = document.createElement('small');
+            description.textContent = choice.description;
+            copy.append(description);
+        }
+        button.append(copy);
+        button.addEventListener('click', () => this._settle(choice.value));
+        return button;
     },
 
     _makeAction(label, primary, danger = false) {
@@ -131,14 +167,14 @@ const Popup = {
                 const isPrompt = !this.root.querySelector('[data-popup-input-label]').hidden;
                 this._settle(isPrompt ? input.value : true);
             } else {
-                this._settle(this.activeMode === 'prompt' ? null : false);
+                this._settle(['prompt', 'choose'].includes(this.activeMode) ? null : false);
             }
         });
         return button;
     },
 
     _dismiss() {
-        if (this.activeMode === 'prompt') this._settle(null);
+        if (['prompt', 'choose'].includes(this.activeMode)) this._settle(null);
         else this._settle(this.activeMode === 'alert');
     },
 
@@ -179,6 +215,12 @@ const Popup = {
     async _fallback(options) {
         if (options.mode === 'confirm') return window.confirm(String(options.message ?? ''));
         if (options.mode === 'prompt') return window.prompt(String(options.message ?? ''), options.value || '');
+        if (options.mode === 'choose') {
+            const choices = options.choices || [];
+            const menu = choices.map((choice, index) => `${index + 1}. ${choice.label}`).join('\n');
+            const selection = Number(window.prompt(`${options.message}\n\n${menu}\n\nNummer eingeben:`));
+            return Number.isInteger(selection) && selection > 0 && selection <= choices.length ? choices[selection - 1].value : null;
+        }
         window.alert(String(options.message ?? ''));
         return true;
     },

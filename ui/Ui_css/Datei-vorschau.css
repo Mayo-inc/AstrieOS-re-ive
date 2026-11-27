@@ -1,0 +1,110 @@
+.File-preview {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    box-sizing: border-box;
+    gap: 10px;
+    padding: 14px;
+    background: #111116;
+    color: #fff;
+    font-family: Google-sans, Arial, sans-serif;
+}
+
+.File-preview-viewer {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: auto;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / .13);
+    border-radius: 12px;
+    background: rgb(9 9 14 / .65);
+    color: #c7c7d0;
+}
+
+.File-preview-download {
+    align-self: flex-end;
+    flex: 0 0 auto;
+    padding: 9px 13px;
+    border: 1px solid rgb(255 255 255 / .15);
+    border-radius: 10px;
+    background: #292936;
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+}
+.File-preview-download:hover { background: #3a3a49; }
+.File-preview-image { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.File-preview-pdf { width: 100%; height: 100%; min-height: 0; border: 0; background: #fff; }
+.File-preview-text {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 18px;
+    overflow: auto;
+    color: #e6e1ed;
+    font: 13px/1.55 "JetBrains Mono", monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    tab-size: 4;
+}
+
+.File-preview-audio .File-preview-viewer, .File-preview-video .File-preview-viewer { display: block; overflow: hidden; }
+.File-custom-player { display: flex; width: 100%; height: 100%; min-height: 0; box-sizing: border-box; flex-direction: column; justify-content: center; gap: 14px; padding: 18px; }
+.File-custom-player.is-audio { align-items: center; background: radial-gradient(ellipse at 50% 0%, rgb(189 130 235 / .18), transparent 58%); }
+.File-audio-art { position: relative; display: grid; width: 72px; height: 72px; place-items: center; overflow: hidden; border: 1px solid rgb(255 255 255 / .18); border-radius: 22px; background: linear-gradient(145deg, #39314f, #1c2433); box-shadow: 0 12px 26px rgb(0 0 0 / .28); }
+.File-audio-art img { position: relative; z-index: 1; width: 36px; height: 36px; object-fit: contain; }
+.File-audio-waveform { position: absolute; inset: auto 8px 8px; display: flex; height: 30px; align-items: center; justify-content: center; gap: 2px; opacity: .55; }
+.File-audio-waveform i { width: 2px; height: var(--wave-height); border-radius: 4px; background: #c89bf4; }
+.File-custom-player.is-audio.is-playing .File-audio-waveform i { animation: File-wave .72s ease-in-out infinite alternate; }
+.File-custom-player.is-audio.is-playing .File-audio-waveform i:nth-child(3n) { animation-delay: -.24s; }
+.File-custom-player.is-audio.is-playing .File-audio-waveform i:nth-child(3n + 1) { animation-delay: -.48s; }
+.File-audio-info { display: grid; width: 100%; justify-items: center; gap: 5px; }
+.File-audio-info strong { max-width: 100%; overflow: hidden; font-size: .95rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.File-player-status { color: #aaa8bb; font-size: .78rem; }
+.File-player-timeline { width: 100%; }
+.File-player-seek, .File-player-volume { height: 4px; margin: 0; accent-color: #c89bf4; cursor: pointer; }
+.File-player-seek { display: block; width: 100%; }
+.File-player-controls { display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px; }
+.File-player-button { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 11px; background: transparent; cursor: pointer; transition: background .14s ease, transform .14s ease; }
+.File-player-button:hover { background: rgb(255 255 255 / .1); }
+.File-player-button:active { transform: scale(.92); }
+.File-player-button:focus-visible, .File-player-mute:focus-visible { outline: 2px solid #d9b5ff; outline-offset: 2px; }
+.File-player-button img { width: 22px; height: 22px; object-fit: contain; pointer-events: none; }
+.File-player-button.File-player-play { width: 42px; height: 42px; border-radius: 14px; background: #a876d2; box-shadow: 0 6px 18px rgb(168 118 210 / .22); }
+.File-player-button.File-player-play:hover { background: #bd8ce8; }
+.File-player-button.File-player-play img { width: 25px; height: 25px; }
+.File-player-button[hidden] { display: none; }
+.File-player-time { display: flex; min-width: 72px; justify-content: center; color: #dedbe7; font: 11px "JetBrains Mono", monospace; white-space: nowrap; }
+.File-player-mute { padding: 5px 7px; border: 1px solid rgb(255 255 255 / .1); border-radius: 8px; background: rgb(255 255 255 / .045); color: #dedbe7; font: inherit; font-size: .72rem; cursor: pointer; }
+.File-player-volume { width: 68px; }
+
+.File-custom-player.is-video { justify-content: flex-start; gap: 10px; padding: 12px; background: linear-gradient(180deg, #101016, #1b1924); }
+.File-video-screen { position: relative; display: grid; width: 100%; min-height: 0; flex: 1 1 auto; place-items: center; overflow: hidden; border: 1px solid rgb(255 255 255 / .11); border-radius: 10px; background: #050507; }
+.File-video-element { display: block; width: 100%; height: 100%; max-height: 100%; object-fit: contain; background: #050507; }
+.File-video-overlay-play { position: absolute; width: 58px; height: 58px; border: 1px solid rgb(255 255 255 / .3); border-radius: 50%; background: rgb(18 16 24 / .72); backdrop-filter: blur(12px); }
+.File-video-overlay-play img { width: 30px; height: 30px; }
+.File-custom-player.is-video .File-player-controls { justify-content: flex-start; gap: 8px; }
+.File-custom-player.is-video .File-player-timeline { margin-top: 0; }
+.File-custom-player.is-video .File-player-time { margin-right: auto; }
+.File-custom-player.is-video .File-player-volume { width: 82px; }
+.File-preview-video .File-player-status { flex: 0 0 auto; }
+.File-preview-viewer:fullscreen { padding: 14px; background: #07070b; }
+
+@keyframes File-wave { from { transform: scaleY(.42); } to { transform: scaleY(1); } }
+
+@media (max-width: 600px) {
+    .File-preview { padding: 8px; }
+    .File-preview-text { padding: 12px; font-size: 12px; }
+    .File-custom-player { gap: 10px; padding: 10px; }
+    .File-player-controls { gap: 4px; }
+    .File-player-volume { width: 52px; }
+    .File-player-time { min-width: 64px; font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .File-audio-waveform i { animation: none !important; }
+}

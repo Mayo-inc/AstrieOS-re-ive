@@ -9,6 +9,9 @@ const Mediaplayer = {
     audio: document.createElement('video'),
     objectUrls: new Map(),
     bound: false,
+    audioEventsBound: false,
+    initListenersBound: false,
+    libraryReady: null,
     seekDragging: false,
     beatmapHitTimes: [],
     nextHitIndex: 0,
@@ -45,22 +48,28 @@ const Mediaplayer = {
 
     init() {
         const attach = () => {
-            if (this.bound || !document.querySelector('.Mediaplayer-placeholder')) return;
-            this.bound = true;
-            this.audio.preload = 'metadata';
-            this.audio.dataset.musicPlayer = 'true';
-            this.audio.hidden = true;
-            this.audio.playsInline = true;
-            this.updateVolume();
-            document.body.appendChild(this.audio);
-            this.bindPlayerControls();
+            const root = document.querySelector('.Mediaplayer-placeholder');
+            if (!root) return;
+            if (!this.bound) {
+                this.bound = true;
+                this.audio.preload = 'metadata';
+                this.audio.dataset.musicPlayer = 'true';
+                this.audio.hidden = true;
+                this.audio.playsInline = true;
+                this.updateVolume();
+                document.body.appendChild(this.audio);
+                this.libraryReady = this.loadLibrary();
+            }
+            this.bindPlayerControls(root);
             this.attachSettingsControls();
             this.watchTitleSize();
-            this.loadLibrary();
         };
         attach();
-        document.addEventListener('mediaplayer-template-ready', attach);
-        document.addEventListener('settings-template-ready', () => this.attachSettingsControls());
+        if (!this.initListenersBound) {
+            this.initListenersBound = true;
+            document.addEventListener('mediaplayer-template-ready', attach);
+            document.addEventListener('settings-template-ready', () => this.attachSettingsControls());
+        }
     },
 
     openDB() {
@@ -153,8 +162,9 @@ const Mediaplayer = {
         }
     },
 
-    bindPlayerControls() {
-        const root = document.querySelector('.Mediaplayer-placeholder');
+    bindPlayerControls(root = document.querySelector('.Mediaplayer-placeholder')) {
+        if (!root || root.dataset.playerControlsBound) return;
+        root.dataset.playerControlsBound = 'true';
         root.querySelector('[data-player-upload]')?.addEventListener('change', event => this.importFiles([...event.target.files]));
         root.querySelector('[data-player-previous]')?.addEventListener('click', () => this.step(-1));
         root.querySelector('[data-player-next]')?.addEventListener('click', () => this.step(1));
@@ -172,9 +182,12 @@ const Mediaplayer = {
             this.syncCoverPlayback(!this.audio.paused);
         });
         seek?.addEventListener('change', () => { this.seekDragging = false; });
+        if (this.audioEventsBound) return;
+        this.audioEventsBound = true;
         this.audio.addEventListener('timeupdate', () => {
+            const activeSeek = document.querySelector('[data-player-seek]');
             if (!this.seekDragging && Number.isFinite(this.audio.duration)) {
-                seek.value = String(Math.round(this.audio.currentTime / this.audio.duration * 1000));
+                if (activeSeek) activeSeek.value = String(Math.round(this.audio.currentTime / this.audio.duration * 1000));
             }
             this.renderTime();
             this.maybeAutoCrossfade();

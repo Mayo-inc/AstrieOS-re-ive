@@ -255,6 +255,7 @@ const EinstellungenHintergrund = {
                 message: 'Möchtest du alle Titel aus der Musik- und osu!-Mediathek löschen?',
                 confirmLabel: 'Playlist löschen',
                 run: async () => {
+                    await window.AstrieRuntime?.loadScript?.('/JavaScript/Mediaplayer.js');
                     const count = window.Mediaplayer?.tracks?.length || 0;
                     if (!window.Mediaplayer) throw new Error('Der Mediaplayer ist gerade nicht verfügbar.');
                     await window.Mediaplayer.clearLibrary();

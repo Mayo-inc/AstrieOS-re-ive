@@ -69,6 +69,7 @@ const Nutzerspeicher = {
                 await this._closeDatabasesForDeleteAll();
                 await this._deleteDatabase(this.WALLPAPER_DB_NAME);
                 await this._deleteDatabase('astrieos_mediaplayer');
+                await this._deleteDatabase('astrieos_dateien');
                 localStorage.clear();
                 sessionStorage.clear();
                 window.location.assign('/');
@@ -92,6 +93,7 @@ const Nutzerspeicher = {
             try { (await this._wallpaperDatabasePromise).close(); } catch {}
             this._wallpaperDatabasePromise = null;
         }
+        window.Dateinmanager?.closeDatabase?.();
         await window.Mediaplayer?.closeDB?.();
     },
 
@@ -314,18 +316,42 @@ const Nutzerspeicher = {
         }
         const settings = this.laden();
         const enabled = Boolean(settings.materialYouEnabled);
-        document.documentElement.classList.toggle('material-you-enabled', enabled);
-        if (!enabled) return;
+        const root = document.documentElement;
+        root.classList.toggle('material-you-enabled', enabled);
+        const variables = [
+            '--material-you-light', '--material-you-light-text', '--material-you-dark', '--material-you-dark-text',
+            '--material-you-accent', '--material-you-primary', '--material-you-on-primary',
+            '--material-you-primary-container', '--material-you-on-primary-container',
+            '--material-you-secondary', '--material-you-tertiary', '--material-you-surface',
+            '--material-you-surface-variant', '--material-you-outline', '--material-you-glow'
+        ];
+        if (!enabled) {
+            variables.forEach(name => root.style.removeProperty(name));
+            return;
+        }
 
         const applyPalette = palette => {
-            const root = document.documentElement;
-            root.style.setProperty('--material-you-light', palette.light);
-            root.style.setProperty('--material-you-light-text', palette.lightText);
-            root.style.setProperty('--material-you-dark', palette.dark);
-            root.style.setProperty('--material-you-dark-text', palette.darkText);
-            root.style.setProperty('--material-you-accent', palette.light);
+            const roles = {
+                '--material-you-light': palette.light,
+                '--material-you-light-text': palette.lightText,
+                '--material-you-dark': palette.dark,
+                '--material-you-dark-text': palette.darkText,
+                '--material-you-accent': palette.accent,
+                '--material-you-primary': palette.primary,
+                '--material-you-on-primary': palette.onPrimary,
+                '--material-you-primary-container': palette.primaryContainer,
+                '--material-you-on-primary-container': palette.onPrimaryContainer,
+                '--material-you-secondary': palette.secondary,
+                '--material-you-tertiary': palette.tertiary,
+                '--material-you-surface': palette.surface,
+                '--material-you-surface-variant': palette.surfaceVariant,
+                '--material-you-outline': palette.outline,
+                '--material-you-glow': palette.glow
+            };
+            Object.entries(roles).forEach(([name, value]) => root.style.setProperty(name, value));
         };
-        applyPalette(settings.materialYouPalette || this._createMaterialYouPalette(settings.materialYouColor || this.MATERIAL_YOU_DEFAULT, settings.materialYouPaletteName));
+        const generatedPalette = this._createMaterialYouPalette(settings.materialYouColor || this.MATERIAL_YOU_DEFAULT, settings.materialYouPaletteName);
+        applyPalette(generatedPalette);
         this._renderMaterialYouPaletteControls();
 
         const background = this.hintergrundLaden();
@@ -405,13 +431,13 @@ const Nutzerspeicher = {
         hue = (hue * 60 + 360) % 360;
         const measuredSaturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * ((max + min) / 2) - 1));
         const paletteStyles = {
-            'Farbenfroh': { saturation: 0.68, light: 0.76, dark: 0.40, hueShift: 0 },
-            'Dominant': { saturation: Math.max(0.36, Math.min(0.62, measuredSaturation || 0.50)), light: 0.72, dark: 0.38, hueShift: 0 },
-            'Am Hellsten': { saturation: 0.58, light: 0.88, dark: 0.52, hueShift: 0 },
-            'Am Dunkelsten': { saturation: 0.68, light: 0.62, dark: 0.28, hueShift: 0 },
-            'Am meisten gesättigten': { saturation: 0.90, light: 0.74, dark: 0.38, hueShift: 0 },
-            'Am wenigsten gesättigten': { saturation: 0.24, light: 0.78, dark: 0.42, hueShift: 0 },
-            'Am lebendigsten': { saturation: 0.82, light: 0.72, dark: 0.36, hueShift: 18 }
+            'Farbenfroh': { saturation: 0.68, light: 0.76, dark: 0.40, accent: 0.66, hueShift: 0 },
+            'Dominant': { saturation: Math.max(0.36, Math.min(0.62, measuredSaturation || 0.50)), light: 0.72, dark: 0.38, accent: 0.64, hueShift: 0 },
+            'Am Hellsten': { saturation: 0.58, light: 0.88, dark: 0.52, accent: 0.76, hueShift: 0 },
+            'Am Dunkelsten': { saturation: 0.68, light: 0.62, dark: 0.28, accent: 0.56, hueShift: 0 },
+            'Am meisten gesättigten': { saturation: 0.90, light: 0.74, dark: 0.38, accent: 0.62, hueShift: 0 },
+            'Am wenigsten gesättigten': { saturation: 0.24, light: 0.78, dark: 0.42, accent: 0.70, hueShift: 0 },
+            'Am lebendigsten': { saturation: 0.82, light: 0.72, dark: 0.36, accent: 0.64, hueShift: 18 }
         };
         const style = paletteStyles[paletteName] || paletteStyles.Farbenfroh;
         hue = (hue + style.hueShift) % 360;
@@ -424,7 +450,46 @@ const Nutzerspeicher = {
             const match = lightness - chroma / 2;
             return `#${[r, g, b].map(channel => Math.round((channel + match) * 255).toString(16).padStart(2, '0')).join('')}`;
         };
-        return { light: toHex(style.light), lightText: toHex(0.20), dark: toHex(style.dark), darkText: toHex(0.96), accent: toHex(Math.min(0.82, style.light + 0.06)) };
+        const tone = (lightness, toneHue = hue, toneSaturation = saturation) => {
+            const chroma = (1 - Math.abs(2 * lightness - 1)) * toneSaturation;
+            const section = ((toneHue % 360) + 360) % 360 / 60;
+            const x = chroma * (1 - Math.abs(section % 2 - 1));
+            const [r, g, b] = section < 1 ? [chroma, x, 0] : section < 2 ? [x, chroma, 0] : section < 3 ? [0, chroma, x] : section < 4 ? [0, x, chroma] : section < 5 ? [x, 0, chroma] : [chroma, 0, x];
+            const match = lightness - chroma / 2;
+            return `#${[r, g, b].map(channel => Math.round((channel + match) * 255).toString(16).padStart(2, '0')).join('')}`;
+        };
+        const mix = (first, second, amount) => {
+            const a = first.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16));
+            const b = second.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16));
+            return `#${a.map((channel, index) => Math.round(channel * (1 - amount) + b[index] * amount).toString(16).padStart(2, '0')).join('')}`;
+        };
+        const luminance = color => color.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16) / 255)
+            .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+            .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+        const light = toHex(style.light);
+        const dark = toHex(style.dark);
+        const primary = tone(style.accent);
+        const primaryContainer = tone(Math.max(0.30, style.dark - 0.025));
+        const secondary = tone(0.70, hue + 34, Math.max(0.38, saturation * 0.72));
+        const tertiary = tone(0.72, hue + 184, Math.max(0.34, saturation * 0.66));
+        const glowRgb = primary.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16)).join(' ');
+        return {
+            light,
+            lightText: toHex(0.20),
+            dark,
+            darkText: toHex(0.96),
+            accent: primary,
+            primary,
+            onPrimary: luminance(primary) > 0.42 ? '#21182b' : '#ffffff',
+            primaryContainer,
+            onPrimaryContainer: toHex(0.96),
+            secondary,
+            tertiary,
+            surface: mix('#14131a', dark, 0.30),
+            surfaceVariant: mix('#282431', dark, 0.38),
+            outline: mix('#ffffff', light, 0.46),
+            glow: `rgb(${glowRgb} / 0.3)`
+        };
     },
 
     /**

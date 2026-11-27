@@ -123,6 +123,31 @@
     box-shadow: 0 0 0 3px rgb(192 139 239 / 0.16);
 }
 
+.popup-choices { display: grid; gap: 9px; margin-top: 20px; }
+.popup-choices[hidden] { display: none; }
+.popup-choice {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid rgb(255 255 255 / .12);
+    border-radius: 14px;
+    background: rgb(255 255 255 / .055);
+    color: var(--popup-ink);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+.popup-choice:hover { transform: translateY(-1px); border-color: rgb(200 155 244 / .55); background: rgb(200 155 244 / .12); }
+.popup-choice:focus-visible { outline: 2px solid #e3c6ff; outline-offset: 2px; }
+.popup-choice img { width: 30px; height: 30px; flex: 0 0 auto; object-fit: contain; }
+.popup-choice-copy { display: grid; gap: 4px; }
+.popup-choice-copy strong { font-size: .95rem; }
+.popup-choice-copy small { color: var(--popup-muted); font-size: .82rem; }
+
 .popup-actions {
     display: grid;
     gap: 8px;
